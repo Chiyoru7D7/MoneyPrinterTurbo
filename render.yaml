@@ -1,0 +1,40 @@
+# ─────────────────────────────────────────────────────────────
+# Render Blueprint — MoneyPrinterTurbo Dashboard (24/7)
+# Deploy: Push to GitHub → Connect repo to Render → Auto-deploy
+# Docs: https://render.com/docs/blueprint-spec
+# ─────────────────────────────────────────────────────────────
+services:
+  - type: web
+    name: mpt-dashboard
+    runtime: docker
+    repo: https://github.com/YOUR_USERNAME/YOUR_REPO.git  # ← CHANGE THIS
+    branch: main
+    plan: starter
+    healthCheckPath: /
+    dockerfilePath: ./Dockerfile.render
+    envVars:
+      # ── Render auto-sets PORT ──
+      - key: PORT
+        value: "8501"
+
+      # ── API Keys — fill in Render Dashboard after creation ──
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: PEXELS_API_KEY
+        sync: false
+
+      # ── Optional: override defaults ──
+      - key: LLM_PROVIDER
+        sync: false
+      - key: VOICE_NAME
+        sync: false
+
+    disk:
+      name: mpt-storage
+      mountPath: /MoneyPrinterTurbo/storage
+      sizeGB: 10
+
+    # Auto-scaling (optional, uncomment for production)
+    # scaling:
+    #   minInstances: 1
+    #   maxInstances: 1

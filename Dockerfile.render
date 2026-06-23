@@ -1,0 +1,32 @@
+# Render Dockerfile — MoneyPrinterTurbo Dashboard
+# Build: docker build -f Dockerfile.render -t mpt-dashboard .
+# Run:   docker run -p 8501:8501 -e DEEPSEEK_API_KEY=sk-xxx -e PEXELS_API_KEY=xxx mpt-dashboard
+
+FROM python:3.11-slim-bullseye
+
+WORKDIR /MoneyPrinterTurbo
+
+ENV PYTHONPATH="/MoneyPrinterTurbo"
+
+# ── System deps (FFmpeg + ImageMagick) ──
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git imagemagick ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Fix ImageMagick PDF policy
+RUN sed -i '/<policy domain="path" rights="none" pattern="@\*"/d' /etc/ImageMagick-6/policy.xml 2>/dev/null || true
+
+# ── Python deps ──
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ── App code ──
+COPY . .
+
+# ── Generate default config from env vars on startup ──
+COPY render_entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/render_entrypoint.sh
+
+EXPOSE 8501
+
+ENTRYPOINT ["/usr/local/bin/render_entrypoint.sh"]
