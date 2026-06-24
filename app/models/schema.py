@@ -1,3 +1,4 @@
+import os
 import warnings
 from enum import Enum
 from typing import Any, List, Optional, Union
@@ -35,12 +36,14 @@ class VideoAspect(str, Enum):
     square = "1:1"
 
     def to_resolution(self):
+        # Low-memory mode: detect if running in constrained environment
+        _low_mem = os.getenv("LOW_MEMORY_MODE", "").lower() in ("1", "true", "yes")
         if self == VideoAspect.landscape:
-            return 1920, 1080
+            return (1280, 720) if _low_mem else (1920, 1080)
         elif self == VideoAspect.portrait:
-            return 1080, 1920
+            return (720, 1280) if _low_mem else (1080, 1920)
         elif self == VideoAspect.square:
-            return 1080, 1080
+            return (720, 720) if _low_mem else (1080, 1080)
         raise ValueError(f"unsupported video aspect: {self}")
 
 
