@@ -215,7 +215,7 @@ _THREAD_LOCK = threading.Lock()
 if "running_tasks" not in st.session_state:
     st.session_state.running_tasks = {}
 if "nav_page" not in st.session_state:
-    st.session_state.nav_page = "Dashboard"
+    st.session_state.nav_page = "🎬 Dashboard"
 
 
 def load_tasks():
