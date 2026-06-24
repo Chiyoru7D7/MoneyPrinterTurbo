@@ -134,6 +134,7 @@ st.markdown(f"""
     [data-testid="stSidebar"] .stRadio label {{
         padding: 16px 22px; border-radius: 14px; font-size: 1.35rem !important; font-weight: 700 !important;
         transition: all 0.15s; cursor: pointer; color: #000000 !important;
+        display: flex !important; align-items: center !important; min-height: 52px !important;
     }}
     [data-testid="stSidebar"] .stRadio label:hover {{ background: {HIGHLIGHT_BG}; }}
 
