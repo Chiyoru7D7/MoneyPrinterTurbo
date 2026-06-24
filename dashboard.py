@@ -375,7 +375,26 @@ if st.session_state.nav_page == "🎬 Dashboard":
             st.session_state.running_tasks[task_id] = {"status": "starting", "error": None}
             t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice), daemon=True)
             t.start()
-            st.success(f"✅ Task `{task_id[:8]}` launched! Video will appear in the gallery below.")
+            st.success(f"Task `{task_id[:8]}` started!")
+
+            # Progress bar polling
+            import time as _time
+            progress_placeholder = st.empty()
+            steps = [
+                (8,   "Generating script with DeepSeek..."),
+                (22,  "Extracting search keywords..."),
+                (38,  "Creating voiceover with Edge TTS..."),
+                (50,  "Syncing subtitles..."),
+                (66,  "Downloading stock footage from Pexels..."),
+                (82,  "Assembling video clips with FFmpeg..."),
+                (96,  "Rendering final MP4..."),
+                (100, "Video complete!"),
+            ]
+            for pct, msg in steps:
+                with progress_placeholder.container():
+                    st.progress(pct, msg)
+                if pct < 100:
+                    _time.sleep(15)
             st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
