@@ -110,8 +110,8 @@ st.markdown(f"""
     /* ── Buttons ── */
     .stButton > button {{
         background: {ACCENT} !important; color: #000000 !important; border: none !important;
-        font-weight: 700 !important; border-radius: 12px !important; padding: 16px 36px !important;
-        font-size: 1.25rem !important; transition: all 0.2s !important;
+        font-weight: 800 !important; border-radius: 14px !important; padding: 18px 40px !important;
+        font-size: 1.4rem !important; transition: all 0.2s !important; letter-spacing: 0.02em;
     }}
     .stButton > button:hover {{
         background: {ACCENT_DARK} !important; color: white !important;
@@ -126,13 +126,13 @@ st.markdown(f"""
     .stTextInput > div > div > input:focus {{
         border-color: {ACCENT} !important; box-shadow: 0 0 0 4px rgba(119,221,119,0.15) !important;
     }}
-    .stSelectbox label, .stTextInput label {{ font-size: 1.1rem !important; color: #000000 !important; font-weight: 700 !important; }}
+    .stSelectbox label, .stTextInput label {{ font-size: 1.25rem !important; color: #000000 !important; font-weight: 700 !important; }}
 
     /* ── Sidebar ── */
     [data-testid="stSidebar"] {{ background: #fafdfa !important; border-right: 2px solid {CARD_BORDER} !important; }}
     [data-testid="stSidebar"] .stRadio > div {{ gap: 10px; }}
     [data-testid="stSidebar"] .stRadio label {{
-        padding: 14px 20px; border-radius: 12px; font-size: 1.2rem !important; font-weight: 700 !important;
+        padding: 16px 22px; border-radius: 14px; font-size: 1.35rem !important; font-weight: 700 !important;
         transition: all 0.15s; cursor: pointer; color: #000000 !important;
     }}
     [data-testid="stSidebar"] .stRadio label:hover {{ background: {HIGHLIGHT_BG}; }}
@@ -330,7 +330,7 @@ if st.session_state.nav_page == "🎬 Dashboard":
         with c2:
             aspect = st.selectbox("Format", ["9:16 (Portrait)", "16:9 (Landscape)", "1:1 (Square)"], index=0)
 
-        submitted = st.form_submit_button("⚡ Generate Video Now", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("⚡ Generate", type="primary", use_container_width=True)
 
         if submitted and topic.strip():
             task_id = str(uuid.uuid4())
