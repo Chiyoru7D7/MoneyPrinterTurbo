@@ -130,16 +130,13 @@ st.markdown(f"""
 
     /* ── Sidebar ── */
     [data-testid="stSidebar"] {{ background: #fafdfa !important; border-right: 2px solid {CARD_BORDER} !important; }}
-    [data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] > div {{
-        background: white !important; border: 1px solid {CARD_BORDER} !important; border-radius: 8px !important;
-        font-size: 0.95rem !important; font-weight: 600 !important; color: #000000 !important; padding: 10px 14px !important;
-    }}
+    [data-testid="stSidebar"] * {{ color: #000000 !important; }}
+    [data-testid="stSidebar"] h2 {{ color: {HEADING} !important; }}
 
     /* ── Dropdown panel fix ── */
-    [data-baseweb="popover"] {{ background: white !important; border: 1px solid {CARD_BORDER} !important; border-radius: 8px !important; }}
-    [data-baseweb="popover"] li {{ color: #000000 !important; font-size: 1rem !important; padding: 12px 16px !important; }}
+    [data-baseweb="popover"] {{ background: white !important; border: 1px solid {CARD_BORDER} !important; }}
+    [data-baseweb="popover"] * {{ color: #000000 !important; }}
     [data-baseweb="popover"] li:hover {{ background: {HIGHLIGHT_BG} !important; }}
-    ul[role="listbox"] li {{ color: #000000 !important; font-size: 1rem !important; }}
 
     /* ── Tabs ── */
     .stTabs [data-baseweb="tab"] {{
