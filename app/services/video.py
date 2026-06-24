@@ -621,6 +621,9 @@ def combine_videos(
         )
         
         try:
+            if not os.path.exists(subclipped_item.file_path):
+                logger.warning(f"skipping missing clip: {subclipped_item.file_path}")
+                continue
             clip = _open_video_clip_quietly(subclipped_item.file_path).subclipped(
                 subclipped_item.start_time, subclipped_item.end_time
             )
