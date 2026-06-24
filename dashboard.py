@@ -64,14 +64,14 @@ st.markdown(f"""
     /* ── Stats Row ── */
     .stats-row {{ display: flex; gap: 18px; margin-bottom: 28px; flex-wrap: wrap; }}
     .stat-box {{
-        flex: 1; min-width: 180px; background: {CARD_BG};
-        border: 1px solid {CARD_BORDER}; border-radius: 14px;
-        padding: 24px 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);
-        display: flex; flex-direction: column; justify-content: center; min-height: 110px;
+        flex: 1; min-width: 150px; background: {CARD_BG};
+        border: 1px solid {CARD_BORDER}; border-radius: 10px;
+        padding: 16px 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+        display: flex; flex-direction: column; justify-content: center; min-height: 84px;
     }}
-    .stat-box.accent {{ border-left: 5px solid {ACCENT}; }}
-    .stat-box .value {{ font-size: 2.8rem; font-weight: 800; color: {HEADING}; line-height: 1.1; }}
-    .stat-box .label {{ font-size: 0.9rem; color: {TEXT_SECONDARY}; margin-top: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }}
+    .stat-box.accent {{ border-left: 4px solid {ACCENT}; }}
+    .stat-box .value {{ font-size: 1.8rem; font-weight: 800; color: {HEADING}; line-height: 1.1; }}
+    .stat-box .label {{ font-size: 0.75rem; color: {TEXT_SECONDARY}; margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }}
     .stat-box.accent .value {{ color: {ACCENT_DEEP}; }}
 
     /* ── Pipeline ── */
@@ -130,13 +130,22 @@ st.markdown(f"""
 
     /* ── Sidebar ── */
     [data-testid="stSidebar"] {{ background: #fafdfa !important; border-right: 2px solid {CARD_BORDER} !important; }}
-    [data-testid="stSidebar"] .stRadio > div {{ gap: 10px; }}
+    [data-testid="stSidebar"] .stRadio > div {{ gap: 6px; }}
     [data-testid="stSidebar"] .stRadio label {{
-        padding: 16px 22px; border-radius: 14px; font-size: 1.35rem !important; font-weight: 700 !important;
+        padding: 10px 16px; border-radius: 8px; font-size: 0.95rem !important; font-weight: 600 !important;
         transition: all 0.15s; cursor: pointer; color: #000000 !important;
-        display: flex !important; align-items: center !important; min-height: 52px !important;
+        border: 1px solid {CARD_BORDER}; background: white;
+        display: flex !important; align-items: center !important;
     }}
-    [data-testid="stSidebar"] .stRadio label:hover {{ background: {HIGHLIGHT_BG}; }}
+    [data-testid="stSidebar"] .stRadio label:hover {{ background: {HIGHLIGHT_BG}; border-color: {ACCENT}; }}
+    [data-testid="stSidebar"] .stRadio [data-checked="true"] label {{
+        background: {HIGHLIGHT_BG} !important; border-color: {ACCENT} !important; color: {ACCENT_DEEP} !important;
+    }}
+
+    /* ── Dropdown panel fix ── */
+    [data-baseweb="popover"] {{ background: white !important; }}
+    [data-baseweb="popover"] li {{ color: #000000 !important; font-size: 1rem !important; padding: 10px 14px !important; }}
+    [data-baseweb="popover"] li:hover {{ background: {HIGHLIGHT_BG} !important; }}
 
     /* ── Tabs ── */
     .stTabs [data-baseweb="tab"] {{
@@ -160,10 +169,10 @@ st.markdown(f"""
 
     /* ── Center form ── */
     .hero-form {{
-        max-width: 750px; margin: 0 auto; text-align: center;
+        max-width: 600px; margin: 0 auto; text-align: center;
         background: {CARD_BG}; border: 2px solid {ACCENT};
-        border-radius: 20px; padding: 40px 48px;
-        box-shadow: 0 8px 30px rgba(119,221,119,0.12);
+        border-radius: 14px; padding: 28px 36px;
+        box-shadow: 0 4px 16px rgba(119,221,119,0.10);
     }}
     .hero-form h2 {{ margin-bottom: 8px; }}
 </style>
