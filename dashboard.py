@@ -245,10 +245,18 @@ def get_video_size_mb(path):
     except: return 0
 
 
-def _run_video_generation(task_id, subject, voice, paragraphs=1):
+def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)"):
     try:
         from app.models.schema import VideoParams
         from app.services import task as task_service
+
+        length_config = {
+            "Short (~15s)":  (1, "Write EXACTLY 2-3 short sentences. Total word count MUST be 25-40 words. Be concise."),
+            "Medium (~30s)": (2, "Write EXACTLY 4-5 sentences. Total word count MUST be 60-90 words. Keep it engaging."),
+            "Long (~60s)":   (3, "Write 6-8 sentences across 2-3 paragraphs. Total word count MUST be 130-170 words."),
+        }
+        paragraphs, script_prompt = length_config.get(length_key, length_config["Short (~15s)"])
+
         with _THREAD_LOCK:
             _THREAD_STORE[task_id] = {"status": "running", "error": None}
         params = VideoParams(
@@ -256,6 +264,7 @@ def _run_video_generation(task_id, subject, voice, paragraphs=1):
             voice_name=voice,
             video_aspect="9:16",
             paragraph_number=paragraphs,
+            video_script_prompt=script_prompt,
         )
         task_service.start(task_id, params, stop_at="video")
         with _THREAD_LOCK:
@@ -397,12 +406,9 @@ if st.session_state.nav_page == "🎬 Dashboard":
         if submitted and topic.strip():
             task_id = str(uuid.uuid4())
             task_dir = STORAGE / task_id
-            # Map length to paragraph count
-            para_map = {"Short (~15s)": 1, "Medium (~30s)": 2, "Long (~60s)": 3}
-            paragraphs = para_map[length]
 
             st.session_state.running_tasks[task_id] = {"status": "running", "error": None}
-            t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice, paragraphs), daemon=True)
+            t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice, length), daemon=True)
             t.start()
             st.success(f"Task `{task_id[:8]}` started!")
 
