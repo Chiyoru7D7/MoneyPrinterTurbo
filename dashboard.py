@@ -67,6 +67,7 @@ st.markdown(f"""
         flex: 1; min-width: 180px; background: {CARD_BG};
         border: 1px solid {CARD_BORDER}; border-radius: 14px;
         padding: 24px 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        display: flex; flex-direction: column; justify-content: center; min-height: 110px;
     }}
     .stat-box.accent {{ border-left: 5px solid {ACCENT}; }}
     .stat-box .value {{ font-size: 2.8rem; font-weight: 800; color: {HEADING}; line-height: 1.1; }}
@@ -108,9 +109,9 @@ st.markdown(f"""
 
     /* ── Buttons ── */
     .stButton > button {{
-        background: {ACCENT} !important; color: {HEADING} !important; border: none !important;
-        font-weight: 700 !important; border-radius: 12px !important; padding: 14px 32px !important;
-        font-size: 1.1rem !important; transition: all 0.2s !important;
+        background: {ACCENT} !important; color: #000000 !important; border: none !important;
+        font-weight: 700 !important; border-radius: 12px !important; padding: 16px 36px !important;
+        font-size: 1.25rem !important; transition: all 0.2s !important;
     }}
     .stButton > button:hover {{
         background: {ACCENT_DARK} !important; color: white !important;
@@ -120,18 +121,19 @@ st.markdown(f"""
     /* ── Inputs ── */
     .stTextInput > div > div > input, .stSelectbox > div > div {{
         border: 2px solid {CARD_BORDER} !important; border-radius: 12px !important;
-        padding: 14px 16px !important; font-size: 1.05rem !important; color: {TEXT_PRIMARY} !important; background: white !important;
+        padding: 16px 18px !important; font-size: 1.15rem !important; color: #000000 !important; background: white !important; font-weight: 600 !important;
     }}
     .stTextInput > div > div > input:focus {{
         border-color: {ACCENT} !important; box-shadow: 0 0 0 4px rgba(119,221,119,0.15) !important;
     }}
+    .stSelectbox label, .stTextInput label {{ font-size: 1.1rem !important; color: #000000 !important; font-weight: 700 !important; }}
 
     /* ── Sidebar ── */
     [data-testid="stSidebar"] {{ background: #fafdfa !important; border-right: 2px solid {CARD_BORDER} !important; }}
-    [data-testid="stSidebar"] .stRadio > div {{ gap: 8px; }}
+    [data-testid="stSidebar"] .stRadio > div {{ gap: 10px; }}
     [data-testid="stSidebar"] .stRadio label {{
-        padding: 12px 16px; border-radius: 10px; font-size: 1rem; font-weight: 600;
-        transition: all 0.15s; cursor: pointer;
+        padding: 14px 20px; border-radius: 12px; font-size: 1.2rem !important; font-weight: 700 !important;
+        transition: all 0.15s; cursor: pointer; color: #000000 !important;
     }}
     [data-testid="stSidebar"] .stRadio label:hover {{ background: {HIGHLIGHT_BG}; }}
 
@@ -252,7 +254,7 @@ with st.sidebar:
 
     # Quick summary
     st.markdown(f"""
-    <div style="font-size:0.95rem;line-height:2.2;">
+    <div style="font-size:1.1rem;line-height:2.4;font-weight:600;color:#000000;">
         <div>📊 <strong>{total}</strong> tasks · <strong>{total_videos}</strong> videos</div>
         <div>✅ <strong>{success_rate:.0f}%</strong> success rate</div>
         <div>💾 <strong>{total_size:.1f} MB</strong> total</div>
@@ -262,7 +264,7 @@ with st.sidebar:
     st.divider()
 
     st.markdown(f"""
-    <div class="text-muted" style="font-size:0.75rem;line-height:1.8;">
+    <div style="font-size:1rem;line-height:2;font-weight:600;color:#000000;">
         <div>🤖 LLM: deepseek</div>
         <div>🎙️ TTS: Edge TTS</div>
         <div>📐 Format: 9:16 Portrait</div>
@@ -351,8 +353,8 @@ if st.session_state.nav_page == "🎬 Dashboard":
         </div>
         """, unsafe_allow_html=True)
 
-    # ── Video Gallery ──
-    st.markdown("<h2>📼 Recent Videos</h2>", unsafe_allow_html=True)
+    # ── Video Gallery (Drawer-style collapsible) ──
+    st.markdown(f"<h2>📼 Recent Videos <span style='font-size:1rem;color:{TEXT_MUTED};font-weight:400;'>({total} tasks)</span></h2>", unsafe_allow_html=True)
 
     if not tasks:
         st.markdown(f"""
@@ -364,39 +366,29 @@ if st.session_state.nav_page == "🎬 Dashboard":
         """, unsafe_allow_html=True)
 
     for task in tasks:
-        with st.container():
-            st.markdown('<div class="video-card">', unsafe_allow_html=True)
+        modified_str = task["modified"].strftime("%b %d, %Y · %H:%M UTC")
+        if task["success"]:
+            status_icon = "✅"
+            status_label = "Completed"
+        else:
+            status_icon = "❌"
+            status_label = "Failed"
 
-            modified_str = task["modified"].strftime("%b %d, %Y · %H:%M UTC")
-            if task["success"]:
-                badge_html = '<span class="badge badge-success">✓ Completed</span>'
-            else:
-                badge_html = '<span class="badge badge-failed">✗ Failed</span>'
+        size_info = ""
+        if task["final_videos"]:
+            mb = sum(get_video_size_mb(v) for v in task["final_videos"])
+            size_info = f" · {mb:.1f} MB · {task['video_count']} video(s)"
 
-            size_str = ""
+        drawer_title = f"{status_icon}  `{task['id_short']}`  —  {status_label}  ·  {modified_str}{size_info}"
+
+        with st.expander(drawer_title, expanded=(task == tasks[0] if tasks else False)):
             if task["final_videos"]:
-                mb = sum(get_video_size_mb(v) for v in task["final_videos"])
-                size_str = f'<span class="text-muted"> · {mb:.1f} MB · {task["video_count"]} video(s)</span>'
-
-            st.markdown(f"""
-            <div class="video-card-header">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span class="badge-id">{task['id_short']}</span>
-                    {badge_html}
-                    <span class="text-muted">{modified_str}{size_str}</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            if task["final_videos"]:
-                st.markdown('<div class="video-card-body">', unsafe_allow_html=True)
                 for vpath in task["final_videos"]:
                     if os.path.exists(vpath):
                         st.video(vpath)
                         break
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.caption("No output video found for this task.")
 
 # ─────────────────────────────────────────────────────────────
 # PAGE 2: PIPELINE & INFO
