@@ -245,13 +245,18 @@ def get_video_size_mb(path):
     except: return 0
 
 
-def _run_video_generation(task_id, subject, voice):
+def _run_video_generation(task_id, subject, voice, paragraphs=1):
     try:
         from app.models.schema import VideoParams
         from app.services import task as task_service
         with _THREAD_LOCK:
             _THREAD_STORE[task_id] = {"status": "running", "error": None}
-        params = VideoParams(video_subject=subject, voice_name=voice, video_aspect="9:16")
+        params = VideoParams(
+            video_subject=subject,
+            voice_name=voice,
+            video_aspect="9:16",
+            paragraph_number=paragraphs,
+        )
         task_service.start(task_id, params, stop_at="video")
         with _THREAD_LOCK:
             _THREAD_STORE[task_id] = {"status": "done", "error": None}
@@ -381,40 +386,50 @@ if st.session_state.nav_page == "🎬 Dashboard":
                 index=0,
             )
         with c2:
-            aspect = st.radio(
-                "Format",
-                ["9:16 (Portrait)", "16:9 (Landscape)", "1:1 (Square)"],
-                index=0,
+            length = st.radio(
+                "Video Length",
+                ["Short (~15s)", "Medium (~30s)", "Long (~60s)"],
+                index=1,
             )
 
         submitted = st.form_submit_button("⚡ Generate", type="primary", use_container_width=True)
 
         if submitted and topic.strip():
             task_id = str(uuid.uuid4())
+            task_dir = STORAGE / task_id
+            # Map length to paragraph count
+            para_map = {"Short (~15s)": 1, "Medium (~30s)": 2, "Long (~60s)": 3}
+            paragraphs = para_map[length]
+
             st.session_state.running_tasks[task_id] = {"status": "running", "error": None}
-            t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice), daemon=True)
+            t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice, paragraphs), daemon=True)
             t.start()
             st.success(f"Task `{task_id[:8]}` started!")
 
-            # Progress bar polling
+            # ── Progress bar: poll actual files ──
             import time as _time
             progress_placeholder = st.empty()
-            steps = [
-                (8,   "Generating script with DeepSeek..."),
-                (22,  "Extracting search keywords..."),
-                (38,  "Creating voiceover with Edge TTS..."),
-                (50,  "Syncing subtitles..."),
-                (66,  "Downloading stock footage from Pexels..."),
-                (82,  "Assembling video clips with FFmpeg..."),
-                (96,  "Rendering final MP4..."),
-                (100, "Video complete!"),
+            steps_poll = [
+                (5,  "Starting pipeline...",                           lambda: True),
+                (15, "Generating script with DeepSeek...",             lambda: (task_dir / "audio.mp3").exists()),
+                (35, "Creating voiceover with Edge TTS...",            lambda: (task_dir / "subtitle.srt").exists()),
+                (50, "Downloading stock footage...",                   lambda: len(list(task_dir.glob("temp-clip-*.mp4"))) > 0),
+                (75, "Assembling video clips...",                      lambda: (task_dir / "combined-1.mp4").exists()),
+                (95, "Rendering final MP4...",                         lambda: (task_dir / "final-1.mp4").exists()),
+                (100,"Video complete!",                                lambda: (task_dir / "final-1.mp4").exists()),
             ]
-            for pct, msg in steps:
+            for pct, msg, check in steps_poll:
                 with progress_placeholder.container():
-                    st.progress(pct, msg)
-                if pct < 100:
-                    _time.sleep(15)
-            # Clear running status so indicator doesn't show after completion
+                    st.progress(pct if pct < 100 else 100, msg)
+                # Wait until condition met, checking every 3 seconds
+                waited = 0
+                while not check() and waited < 180:  # max 3 min per step
+                    _time.sleep(3)
+                    waited += 3
+                if pct >= 100:
+                    break
+            with progress_placeholder.container():
+                st.progress(100, "Video complete!")
             if task_id in st.session_state.running_tasks:
                 del st.session_state.running_tasks[task_id]
             st.rerun()
