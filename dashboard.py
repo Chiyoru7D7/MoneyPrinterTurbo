@@ -304,6 +304,25 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
+    st.divider()
+
+    # Cache cleanup
+    cache_count = len(list(CACHE.glob("*.mp4"))) if CACHE.exists() else 0
+    cache_size = sum(f.stat().st_size for f in CACHE.glob("*.mp4")) / (1024 * 1024) if CACHE.exists() else 0
+    st.caption(f"🎞️ Cached clips: {cache_count} files ({cache_size:.1f} MB)")
+    if st.button("🗑️ Delete Cache", use_container_width=True):
+        import shutil
+        deleted = 0
+        if CACHE.exists():
+            for f in CACHE.glob("*.mp4"):
+                try:
+                    f.unlink()
+                    deleted += 1
+                except Exception:
+                    pass
+        st.success(f"Deleted {deleted} cached files.")
+        st.rerun()
+
 # ─────────────────────────────────────────────────────────────
 # PAGE 1: DASHBOARD
 # ─────────────────────────────────────────────────────────────
