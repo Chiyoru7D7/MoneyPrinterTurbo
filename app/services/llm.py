@@ -138,6 +138,15 @@ def _extract_qwen_generation_text(response) -> str:
 
 def _generate_response(prompt: str) -> str:
     try:
+        # ── Cloud env override: read API keys directly from environment ──
+        # Bypasses config.toml corruption; works regardless of Dockerfile/entrypoint
+        import os as _os
+        if _os.getenv("DEEPSEEK_API_KEY"):
+            config.app["deepseek_api_key"] = _os.getenv("DEEPSEEK_API_KEY")
+            config.app["llm_provider"] = "deepseek"
+        if _os.getenv("PEXELS_API_KEY"):
+            config.app["pexels_api_keys"] = [_os.getenv("PEXELS_API_KEY")]
+
         content = ""
         llm_provider = config.app.get("llm_provider", "openai")
         logger.info(f"llm provider: {llm_provider}")
