@@ -72,10 +72,14 @@ RUN if [ "$PIP_USE_OFFICIAL" = "1" ]; then \
 COPY . .
 
 # Expose the port the app runs on
+# ── Render entrypoint ──
+COPY render_entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/render_entrypoint.sh
+RUN rm -f /MoneyPrinterTurbo/config.toml
+
 EXPOSE 8501
 
-# Command to run the application
-CMD ["streamlit", "run", "./webui/Main.py","--browser.serverAddress=127.0.0.1","--server.enableCORS=True","--browser.gatherUsageStats=False","--server.showEmailPrompt=False"]
+ENTRYPOINT ["/usr/local/bin/render_entrypoint.sh"]
 
 # 1. Build the Docker image using the following command
 # docker build -t moneyprinterturbo .
