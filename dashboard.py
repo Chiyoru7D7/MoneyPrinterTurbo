@@ -51,6 +51,10 @@ CACHE = Path(__file__).parent / "storage" / "cache_videos"
 if "running_tasks" not in st.session_state:
     st.session_state.running_tasks = {}  # {task_id: {"status": "running|done|error", "log": [], "result": None}}
 
+# Thread-safe global store for background threads (st.session_state inaccessible from threads)
+_THREAD_STORE = {}
+_THREAD_LOCK = threading.Lock()
+
 
 def load_tasks():
     tasks = []
@@ -92,7 +96,8 @@ def _run_video_generation(task_id: str, subject: str, voice_name: str):
         from app.models.schema import VideoParams
         from app.services import task as task_service
 
-        st.session_state.running_tasks[task_id]["status"] = "running"
+        with _THREAD_LOCK:
+            _THREAD_STORE[task_id] = {"status": "running", "error": None}
 
         params = VideoParams(
             video_subject=subject,
@@ -100,11 +105,13 @@ def _run_video_generation(task_id: str, subject: str, voice_name: str):
             video_aspect="9:16",
         )
         task_service.start(task_id, params, stop_at="video")
-        st.session_state.running_tasks[task_id]["status"] = "done"
+
+        with _THREAD_LOCK:
+            _THREAD_STORE[task_id] = {"status": "done", "error": None}
 
     except Exception as e:
-        st.session_state.running_tasks[task_id]["status"] = "error"
-        st.session_state.running_tasks[task_id]["error"] = str(e)
+        with _THREAD_LOCK:
+            _THREAD_STORE[task_id] = {"status": "error", "error": str(e)}
 
 
 # ── Header ──────────────────────────────────────────────────
@@ -148,7 +155,15 @@ for i, (icon, name, detail) in enumerate(steps):
         """, unsafe_allow_html=True)
 
 # ── Live running tasks ──────────────────────────────────────
-running = {k: v for k, v in st.session_state.running_tasks.items() if v["status"] == "running"}
+# Merge thread store into session state for UI display
+with _THREAD_LOCK:
+    for tid, tinfo in _THREAD_STORE.items():
+        if tid not in st.session_state.running_tasks:
+            st.session_state.running_tasks[tid] = tinfo
+        else:
+            st.session_state.running_tasks[tid].update(tinfo)
+
+running = {k: v for k, v in st.session_state.running_tasks.items() if v.get("status") in ("running", "starting")}
 if running:
     st.markdown('<div class="section-title">🔄 Generating Now</div>', unsafe_allow_html=True)
     for tid, tinfo in running.items():
