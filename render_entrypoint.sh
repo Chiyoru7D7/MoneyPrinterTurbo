@@ -4,8 +4,8 @@
 # ─────────────────────────────────────────────────────────────
 set -e
 
-# 512MB memory constraint: 720p output instead of 1080p
-export LOW_MEMORY_MODE="${LOW_MEMORY_MODE:-1}"
+# Standard plan has enough RAM — use full 1080p
+export LOW_MEMORY_MODE="${LOW_MEMORY_MODE:-0}"
 echo "[render_entrypoint] LOW_MEMORY_MODE=$LOW_MEMORY_MODE"
 
 CONFIG_FILE="/MoneyPrinterTurbo/config.toml"
