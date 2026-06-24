@@ -41,6 +41,10 @@ HIGHLIGHT_BG = "#e8f5e9"
 st.markdown(f"""
 <style>
     .stApp {{ background: {BG}; }}
+    [data-testid="stToolbar"] {{ display: none !important; }}
+    #MainMenu {{ display: none !important; }}
+    footer {{ display: none !important; }}
+    header {{ display: none !important; }}
     .main .block-container {{ padding: 2rem 3rem; max-width: 1500px; }}
 
     h1 {{ font-size: 2.6rem !important; color: {HEADING} !important; font-weight: 800 !important; letter-spacing: -0.03em; }}
