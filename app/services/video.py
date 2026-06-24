@@ -1137,7 +1137,7 @@ def generate_video(
         threads=params.n_threads or 1,
         logger=None,
         fps=fps,
-        ffmpeg_params=["-preset", "ultrafast", "-crf", "28"],
+        ffmpeg_params=["-preset", "ultrafast", "-crf", "28", "-pix_fmt", "yuv420p"],
     )
     video_clip.close()
     del video_clip
