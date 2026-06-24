@@ -188,6 +188,17 @@ app["redis_host"] = os.getenv(
     os.getenv("REDIS_HOST", app.get("redis_host", "localhost")),
 )
 
+# ── Env var overrides for cloud deployment (Render, etc.) ──
+# These take precedence over config.toml values
+if os.getenv("DEEPSEEK_API_KEY"):
+    app["deepseek_api_key"] = os.getenv("DEEPSEEK_API_KEY")
+if os.getenv("PEXELS_API_KEY"):
+    app["pexels_api_keys"] = [os.getenv("PEXELS_API_KEY")]
+if os.getenv("LLM_PROVIDER"):
+    app["llm_provider"] = os.getenv("LLM_PROVIDER")
+if os.getenv("VOICE_NAME"):
+    app["voice_name"] = os.getenv("VOICE_NAME")
+
 imagemagick_path = app.get("imagemagick_path", "")
 if imagemagick_path and os.path.isfile(imagemagick_path):
     os.environ["IMAGEMAGICK_BINARY"] = imagemagick_path
