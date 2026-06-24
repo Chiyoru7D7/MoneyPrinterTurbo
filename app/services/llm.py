@@ -173,6 +173,7 @@ def _generate_response(prompt: str) -> str:
             )
         else:
             api_version = ""  # for azure
+            api_key = None  # initialized below per-provider, checked before use
             if llm_provider == "moonshot":
                 api_key = config.app.get("moonshot_api_key")
                 model_name = config.app.get("moonshot_model_name")
