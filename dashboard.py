@@ -164,31 +164,11 @@ st.markdown(f"""
         border-color: #2a2a4a !important;
     }}
 
-    /* ── Sidebar dropdown panels (dark) ── */
-    [data-testid="stSidebar"] [data-baseweb="popover"] {{
-        background: #16213e !important;
-        border: 1px solid #2a2a4a !important;
-    }}
-    [data-testid="stSidebar"] [data-baseweb="popover"] * {{
-        color: #ffffff !important;
-    }}
-    [data-testid="stSidebar"] [data-baseweb="popover"] li:hover {{
-        background: #2a2a4a !important;
-    }}
-
-    /* ── Main page dropdown panels (light) ── */
-    [data-baseweb="popover"] {{
-        background: #ffffff !important;
-        border: 1px solid {CARD_BORDER} !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
-    }}
-    [data-baseweb="popover"] li {{
+    /* ── Radio buttons ── */
+    .stRadio label {{
         color: #000000 !important;
         font-size: 1rem !important;
-        padding: 10px 16px !important;
-    }}
-    [data-baseweb="popover"] li:hover {{
-        background: {HIGHLIGHT_BG} !important;
+        font-weight: 600 !important;
     }}
 
     /* ── Tabs ── */
@@ -372,12 +352,17 @@ if st.session_state.nav_page == "🎬 Dashboard":
         )
         c1, c2 = st.columns([1, 1])
         with c1:
-            voice = st.selectbox(
+            voice = st.radio(
                 "Voice",
-                ["en-US-JennyNeural", "en-US-GuyNeural", "en-US-AriaNeural", "en-US-DavisNeural", "zh-CN-XiaoxiaoNeural-Female"],
+                ["en-US-JennyNeural", "en-US-GuyNeural", "zh-CN-XiaoxiaoNeural-Female"],
+                index=0,
             )
         with c2:
-            aspect = st.selectbox("Format", ["9:16 (Portrait)", "16:9 (Landscape)", "1:1 (Square)"], index=0)
+            aspect = st.radio(
+                "Format",
+                ["9:16 (Portrait)", "16:9 (Landscape)", "1:1 (Square)"],
+                index=0,
+            )
 
         submitted = st.form_submit_button("⚡ Generate", type="primary", use_container_width=True)
 
