@@ -164,19 +164,31 @@ st.markdown(f"""
         border-color: #2a2a4a !important;
     }}
 
-    /* ── Dropdown panels ── */
-    [data-baseweb="popover"] {{
+    /* ── Sidebar dropdown panels (dark) ── */
+    [data-testid="stSidebar"] [data-baseweb="popover"] {{
         background: #16213e !important;
         border: 1px solid #2a2a4a !important;
     }}
-    [data-baseweb="popover"] * {{
+    [data-testid="stSidebar"] [data-baseweb="popover"] * {{
         color: #ffffff !important;
     }}
-    [data-baseweb="popover"] li:hover {{
+    [data-testid="stSidebar"] [data-baseweb="popover"] li:hover {{
         background: #2a2a4a !important;
     }}
-    [data-baseweb="popover"] [aria-selected="true"] {{
-        background: {ACCENT_DEEP} !important;
+
+    /* ── Main page dropdown panels (light) ── */
+    [data-baseweb="popover"] {{
+        background: #ffffff !important;
+        border: 1px solid {CARD_BORDER} !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+    }}
+    [data-baseweb="popover"] li {{
+        color: #000000 !important;
+        font-size: 1rem !important;
+        padding: 10px 16px !important;
+    }}
+    [data-baseweb="popover"] li:hover {{
+        background: {HIGHLIGHT_BG} !important;
     }}
 
     /* ── Tabs ── */
@@ -300,9 +312,9 @@ with st.sidebar:
 
     st.divider()
 
-    # Quick summary
+    # Quick summary — centered
     st.markdown(f"""
-    <div style="font-size:0.9rem;line-height:2.2;">
+    <div style="text-align:center;font-size:0.9rem;line-height:2.2;">
         <div>📊 <strong>{total}</strong> tasks · <strong>{total_videos}</strong> videos</div>
         <div>✅ <strong>{success_rate:.0f}%</strong> success rate</div>
         <div>💾 <strong>{total_size:.1f} MB</strong> total</div>
@@ -312,7 +324,7 @@ with st.sidebar:
     st.divider()
 
     st.markdown(f"""
-    <div style="font-size:0.9rem;line-height:2.2;">
+    <div style="text-align:center;font-size:0.9rem;line-height:2.2;">
         <div>🤖 LLM: <strong>deepseek</strong></div>
         <div>🎙️ TTS: <strong>Edge TTS</strong></div>
         <div>📐 Format: <strong>9:16</strong></div>
