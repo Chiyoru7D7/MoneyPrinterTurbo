@@ -312,17 +312,6 @@ with st.sidebar:
 
     st.divider()
 
-    # Quick summary — centered
-    st.markdown(f"""
-    <div style="text-align:center;font-size:0.9rem;line-height:2.2;">
-        <div>📊 <strong>{total}</strong> tasks · <strong>{total_videos}</strong> videos</div>
-        <div>✅ <strong>{success_rate:.0f}%</strong> success rate</div>
-        <div>💾 <strong>{total_size:.1f} MB</strong> total</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.divider()
-
     st.markdown(f"""
     <div style="text-align:center;font-size:0.9rem;line-height:2.2;">
         <div>🤖 LLM: <strong>deepseek</strong></div>
