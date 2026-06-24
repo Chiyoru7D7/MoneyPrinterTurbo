@@ -143,10 +143,22 @@ st.markdown(f"""
     [data-testid="stSidebar"] strong {{
         color: {ACCENT} !important;
     }}
-    [data-testid="stSidebar"] .stSelectbox > div > div > div {{
-        background: #16213e !important;
-        border: 1px solid #2a2a4a !important;
+    [data-testid="stSidebar"] .stButton > button {{
+        font-size: 0.9rem !important;
+        font-weight: 600 !important;
+        padding: 10px 12px !important;
+        border-radius: 8px !important;
+        text-align: center !important;
+    }}
+    [data-testid="stSidebar"] .stButton > button[kind="primary"] {{
+        background: {ACCENT_DEEP} !important;
         color: #ffffff !important;
+        border: 1px solid {ACCENT} !important;
+    }}
+    [data-testid="stSidebar"] .stButton > button[kind="secondary"] {{
+        background: transparent !important;
+        color: #cccccc !important;
+        border: 1px solid #2a2a4a !important;
     }}
     [data-testid="stSidebar"] hr {{
         border-color: #2a2a4a !important;
@@ -273,13 +285,18 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    # Navigation
-    page = st.selectbox(
-        "Navigation",
-        ["🎬 Dashboard", "⚙️ Pipeline & Info"],
-        label_visibility="collapsed",
-    )
-    st.session_state.nav_page = page
+    # Navigation — buttons instead of selectbox
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("🎬 Dashboard", use_container_width=True,
+                     type="primary" if st.session_state.nav_page == "🎬 Dashboard" else "secondary"):
+            st.session_state.nav_page = "🎬 Dashboard"
+            st.rerun()
+    with c2:
+        if st.button("⚙️ Pipeline", use_container_width=True,
+                     type="primary" if st.session_state.nav_page == "⚙️ Pipeline & Info" else "secondary"):
+            st.session_state.nav_page = "⚙️ Pipeline & Info"
+            st.rerun()
 
     st.divider()
 
