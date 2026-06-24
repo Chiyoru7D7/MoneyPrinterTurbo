@@ -389,7 +389,7 @@ if st.session_state.nav_page == "🎬 Dashboard":
             length = st.radio(
                 "Video Length",
                 ["Short (~15s)", "Medium (~30s)", "Long (~60s)"],
-                index=1,
+                index=0,
             )
 
         submitted = st.form_submit_button("⚡ Generate", type="primary", use_container_width=True)
