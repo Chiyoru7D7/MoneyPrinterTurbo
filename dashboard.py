@@ -257,6 +257,12 @@ def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)"):
         }
         paragraphs, script_prompt = length_config.get(length_key, length_config["Short (~15s)"])
 
+        # Use English font for English voices, Chinese font for Chinese
+        if voice.startswith("en-"):
+            font = "Charm-Bold.ttf"
+        else:
+            font = "STHeitiMedium.ttc"
+
         with _THREAD_LOCK:
             _THREAD_STORE[task_id] = {"status": "running", "error": None}
         params = VideoParams(
@@ -265,6 +271,7 @@ def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)"):
             video_aspect="9:16",
             paragraph_number=paragraphs,
             video_script_prompt=script_prompt,
+            font_name=font,
         )
         task_service.start(task_id, params, stop_at="video")
         with _THREAD_LOCK:
@@ -489,6 +496,18 @@ if st.session_state.nav_page == "🎬 Dashboard":
                         break
             else:
                 st.caption("No output video found for this task.")
+
+            # Delete button
+            cdel1, cdel2 = st.columns([3, 1])
+            with cdel2:
+                if st.button(f"🗑️ Delete", key=f"del_{task['full_id']}", use_container_width=True):
+                    import shutil
+                    try:
+                        shutil.rmtree(task["task_dir"])
+                        st.success(f"Deleted task `{task['id_short']}`")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed: {e}")
 
 # ─────────────────────────────────────────────────────────────
 # PAGE 2: PIPELINE & INFO
