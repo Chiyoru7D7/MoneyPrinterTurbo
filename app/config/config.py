@@ -192,12 +192,23 @@ app["redis_host"] = os.getenv(
 # These take precedence over config.toml values
 if os.getenv("DEEPSEEK_API_KEY"):
     app["deepseek_api_key"] = os.getenv("DEEPSEEK_API_KEY")
+    # Force llm_provider to deepseek when the API key is present
+    app["llm_provider"] = "deepseek"
 if os.getenv("PEXELS_API_KEY"):
     app["pexels_api_keys"] = [os.getenv("PEXELS_API_KEY")]
 if os.getenv("LLM_PROVIDER"):
     app["llm_provider"] = os.getenv("LLM_PROVIDER")
 if os.getenv("VOICE_NAME"):
     app["voice_name"] = os.getenv("VOICE_NAME")
+
+# Log loaded config for cloud debugging
+logger.info(
+    "config loaded: llm_provider=%s, deepseek_key=%s, pexels_key=%s, voice=%s",
+    app.get("llm_provider", ""),
+    "***" if app.get("deepseek_api_key") else "(empty)",
+    "***" if app.get("pexels_api_keys") else "(empty)",
+    app.get("voice_name", ""),
+)
 
 imagemagick_path = app.get("imagemagick_path", "")
 if imagemagick_path and os.path.isfile(imagemagick_path):
