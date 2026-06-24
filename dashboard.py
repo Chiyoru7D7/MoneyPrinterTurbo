@@ -372,7 +372,7 @@ if st.session_state.nav_page == "🎬 Dashboard":
 
         if submitted and topic.strip():
             task_id = str(uuid.uuid4())
-            st.session_state.running_tasks[task_id] = {"status": "starting", "error": None}
+            st.session_state.running_tasks[task_id] = {"status": "running", "error": None}
             t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice), daemon=True)
             t.start()
             st.success(f"Task `{task_id[:8]}` started!")
@@ -395,13 +395,16 @@ if st.session_state.nav_page == "🎬 Dashboard":
                     st.progress(pct, msg)
                 if pct < 100:
                     _time.sleep(15)
+            # Clear running status so indicator doesn't show after completion
+            if task_id in st.session_state.running_tasks:
+                del st.session_state.running_tasks[task_id]
             st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Running indicator ──
-    running = {k: v for k, v in st.session_state.running_tasks.items() if v.get("status") in ("running", "starting")}
+    # ── Running indicator (only for tasks without progress bar) ──
+    running = {k: v for k, v in st.session_state.running_tasks.items() if v.get("status") in ("running",)}
     if running:
         st.markdown(f"""
         <div style="background:{HIGHLIGHT_BG};border:1px solid {ACCENT};border-radius:14px;padding:16px 24px;margin-bottom:24px;">
