@@ -67,7 +67,7 @@ class SubClippedVideoClip:
 audio_codec = "aac"
 # Docker 里的 ffmpeg/AAC 组合在默认配置下更容易出现音频质量波动，
 # 这里显式抬高音频码率，避免成片阶段因为默认值过低而引入明显失真。
-audio_bitrate = "192k"
+audio_bitrate = "128k"
 fps = 30
 # FFmpeg 按帧率拼接/转码时，最终时长可能比 MoviePy 读到的理论时长短几十毫秒。
 # 这里给视频素材多留一个很小的安全余量，避免音频末尾因为帧舍入出现黑屏、
@@ -334,7 +334,11 @@ def concat_video_clips_with_ffmpeg(
             "-c:v",
             codec,
             "-threads",
-            str(threads or 2),
+            str(threads or 1),
+            "-preset",
+            "ultrafast",
+            "-crf",
+            "28",
             "-pix_fmt",
             "yuv420p",
             output_file,
@@ -539,8 +543,8 @@ def combine_videos(
     video_aspect: VideoAspect = VideoAspect.portrait,
     video_concat_mode: VideoConcatMode = VideoConcatMode.random,
     video_transition_mode: VideoTransitionMode = None,
-    max_clip_duration: int = 5,
-    threads: int = 2,
+    max_clip_duration: int = 3,
+    threads: int = 1,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     try:
@@ -1127,9 +1131,10 @@ def generate_video(
         audio_fps=output_audio_fps,
         audio_bitrate=audio_bitrate,
         temp_audiofile_path=_get_temp_audio_dir(output_dir),
-        threads=params.n_threads or 2,
+        threads=params.n_threads or 1,
         logger=None,
         fps=fps,
+        ffmpeg_params=["-preset", "ultrafast", "-crf", "28"],
     )
     video_clip.close()
     del video_clip
