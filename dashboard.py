@@ -128,15 +128,44 @@ st.markdown(f"""
     }}
     .stSelectbox label, .stTextInput label {{ font-size: 1.25rem !important; color: #000000 !important; font-weight: 700 !important; }}
 
-    /* ── Sidebar ── */
-    [data-testid="stSidebar"] {{ background: #fafdfa !important; border-right: 2px solid {CARD_BORDER} !important; }}
-    [data-testid="stSidebar"] * {{ color: #000000 !important; }}
-    [data-testid="stSidebar"] h2 {{ color: {HEADING} !important; }}
+    /* ── Dark Sidebar ── */
+    [data-testid="stSidebar"] {{
+        background: #1a1a2e !important;
+        border-right: none !important;
+    }}
+    [data-testid="stSidebar"] * {{
+        color: #e0e0e0 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+    }}
+    [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{
+        color: #ffffff !important;
+    }}
+    [data-testid="stSidebar"] strong {{
+        color: {ACCENT} !important;
+    }}
+    [data-testid="stSidebar"] .stSelectbox > div > div > div {{
+        background: #16213e !important;
+        border: 1px solid #2a2a4a !important;
+        color: #ffffff !important;
+    }}
+    [data-testid="stSidebar"] hr {{
+        border-color: #2a2a4a !important;
+    }}
 
-    /* ── Dropdown panel fix ── */
-    [data-baseweb="popover"] {{ background: white !important; border: 1px solid {CARD_BORDER} !important; }}
-    [data-baseweb="popover"] * {{ color: #000000 !important; }}
-    [data-baseweb="popover"] li:hover {{ background: {HIGHLIGHT_BG} !important; }}
+    /* ── Dropdown panels ── */
+    [data-baseweb="popover"] {{
+        background: #16213e !important;
+        border: 1px solid #2a2a4a !important;
+    }}
+    [data-baseweb="popover"] * {{
+        color: #ffffff !important;
+    }}
+    [data-baseweb="popover"] li:hover {{
+        background: #2a2a4a !important;
+    }}
+    [data-baseweb="popover"] [aria-selected="true"] {{
+        background: {ACCENT_DEEP} !important;
+    }}
 
     /* ── Tabs ── */
     .stTabs [data-baseweb="tab"] {{
@@ -240,11 +269,11 @@ with st.sidebar:
     <div style="text-align:center;padding:10px 0 20px 0;">
         <div style="font-size:2.8rem;">🎬</div>
         <h2 style="margin:4px 0;font-size:1.3rem !important;">MPT Console</h2>
-        <p class="text-muted" style="margin:0;font-size:0.8rem;">v1.3.0 · Render Cloud</p>
+        <p style="margin:0;font-size:0.8rem;opacity:0.7;">v1.3.0 · Render Cloud</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # Navigation — use selectbox instead of radio to avoid empty button
+    # Navigation
     page = st.selectbox(
         "Navigation",
         ["🎬 Dashboard", "⚙️ Pipeline & Info"],
@@ -254,10 +283,9 @@ with st.sidebar:
 
     st.divider()
 
-    # Quick summary — same font size as nav buttons
-    sidebar_font = "font-size:0.95rem;line-height:2.2;font-weight:600;color:#000000;"
+    # Quick summary
     st.markdown(f"""
-    <div style="{sidebar_font}">
+    <div style="font-size:0.9rem;line-height:2.2;">
         <div>📊 <strong>{total}</strong> tasks · <strong>{total_videos}</strong> videos</div>
         <div>✅ <strong>{success_rate:.0f}%</strong> success rate</div>
         <div>💾 <strong>{total_size:.1f} MB</strong> total</div>
@@ -267,10 +295,10 @@ with st.sidebar:
     st.divider()
 
     st.markdown(f"""
-    <div style="{sidebar_font}">
-        <div>🤖 LLM: deepseek</div>
-        <div>🎙️ TTS: Edge TTS</div>
-        <div>📐 Format: 9:16 Portrait</div>
+    <div style="font-size:0.9rem;line-height:2.2;">
+        <div>🤖 LLM: <strong>deepseek</strong></div>
+        <div>🎙️ TTS: <strong>Edge TTS</strong></div>
+        <div>📐 Format: <strong>9:16</strong></div>
     </div>
     """, unsafe_allow_html=True)
 
