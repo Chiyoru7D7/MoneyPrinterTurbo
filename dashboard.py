@@ -130,22 +130,16 @@ st.markdown(f"""
 
     /* ── Sidebar ── */
     [data-testid="stSidebar"] {{ background: #fafdfa !important; border-right: 2px solid {CARD_BORDER} !important; }}
-    [data-testid="stSidebar"] .stRadio > div {{ gap: 6px; }}
-    [data-testid="stSidebar"] .stRadio label {{
-        padding: 10px 16px; border-radius: 8px; font-size: 0.95rem !important; font-weight: 600 !important;
-        transition: all 0.15s; cursor: pointer; color: #000000 !important;
-        border: 1px solid {CARD_BORDER}; background: white;
-        display: flex !important; align-items: center !important;
-    }}
-    [data-testid="stSidebar"] .stRadio label:hover {{ background: {HIGHLIGHT_BG}; border-color: {ACCENT}; }}
-    [data-testid="stSidebar"] .stRadio [data-checked="true"] label {{
-        background: {HIGHLIGHT_BG} !important; border-color: {ACCENT} !important; color: {ACCENT_DEEP} !important;
+    [data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] > div {{
+        background: white !important; border: 1px solid {CARD_BORDER} !important; border-radius: 8px !important;
+        font-size: 0.95rem !important; font-weight: 600 !important; color: #000000 !important; padding: 10px 14px !important;
     }}
 
     /* ── Dropdown panel fix ── */
-    [data-baseweb="popover"] {{ background: white !important; }}
-    [data-baseweb="popover"] li {{ color: #000000 !important; font-size: 1rem !important; padding: 10px 14px !important; }}
+    [data-baseweb="popover"] {{ background: white !important; border: 1px solid {CARD_BORDER} !important; border-radius: 8px !important; }}
+    [data-baseweb="popover"] li {{ color: #000000 !important; font-size: 1rem !important; padding: 12px 16px !important; }}
     [data-baseweb="popover"] li:hover {{ background: {HIGHLIGHT_BG} !important; }}
+    ul[role="listbox"] li {{ color: #000000 !important; font-size: 1rem !important; }}
 
     /* ── Tabs ── */
     .stTabs [data-baseweb="tab"] {{
@@ -253,8 +247,9 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    page = st.radio(
-        "",
+    # Navigation — use selectbox instead of radio to avoid empty button
+    page = st.selectbox(
+        "Navigation",
         ["🎬 Dashboard", "⚙️ Pipeline & Info"],
         label_visibility="collapsed",
     )
@@ -262,9 +257,10 @@ with st.sidebar:
 
     st.divider()
 
-    # Quick summary
+    # Quick summary — same font size as nav buttons
+    sidebar_font = "font-size:0.95rem;line-height:2.2;font-weight:600;color:#000000;"
     st.markdown(f"""
-    <div style="font-size:1.1rem;line-height:2.4;font-weight:600;color:#000000;">
+    <div style="{sidebar_font}">
         <div>📊 <strong>{total}</strong> tasks · <strong>{total_videos}</strong> videos</div>
         <div>✅ <strong>{success_rate:.0f}%</strong> success rate</div>
         <div>💾 <strong>{total_size:.1f} MB</strong> total</div>
@@ -274,7 +270,7 @@ with st.sidebar:
     st.divider()
 
     st.markdown(f"""
-    <div style="font-size:1rem;line-height:2;font-weight:600;color:#000000;">
+    <div style="{sidebar_font}">
         <div>🤖 LLM: deepseek</div>
         <div>🎙️ TTS: Edge TTS</div>
         <div>📐 Format: 9:16 Portrait</div>
