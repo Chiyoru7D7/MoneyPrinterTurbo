@@ -23,7 +23,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ── App code ──
 COPY . .
 
-# ── Generate default config from env vars on startup ──
+# ── Remove bundled config.toml — entrypoint generates it from env vars ──
+RUN rm -f config.toml
+
+# ── Startup script ──
 COPY render_entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/render_entrypoint.sh
 
