@@ -18,7 +18,7 @@ st.set_page_config(
     page_title="MPT Dashboard | AI Video Production",
     page_icon="🎬",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="auto",
 )
 
 # ── Color Palette ───────────────────────────────────────────
