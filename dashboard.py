@@ -4,10 +4,16 @@ Run: streamlit run dashboard.py
 """
 import streamlit as st
 import os
-import json
-import glob
+import sys
+import uuid
+import threading
 from datetime import datetime
 from pathlib import Path
+
+# Ensure MPT modules are importable
+sys.path.insert(0, str(Path(__file__).parent))
+
+from loguru import logger
 
 st.set_page_config(
     page_title="MPT Video Dashboard",
@@ -30,16 +36,21 @@ st.markdown("""
     .tag { display: inline-block; background: #1f6feb22; color: #58a6ff; border: 1px solid #1f6feb44; border-radius: 20px; padding: 4px 12px; margin: 2px; font-size: 0.8rem; }
     .status-badge { display: inline-block; padding: 4px 14px; border-radius: 20px; font-size: 0.82rem; font-weight: 600; }
     .status-success { background: #23863622; color: #3fb950; border: 1px solid #23863644; }
+    .status-running { background: #d2992222; color: #e3b341; border: 1px solid #d2992244; }
     .status-failed { background: #da363322; color: #f85149; border: 1px solid #da363344; }
     .section-title { color: #e6edf3; font-size: 1.3rem; font-weight: 700; margin: 32px 0 16px 0; padding-bottom: 8px; border-bottom: 2px solid #30363d; }
-    .pipeline-step { padding: 10px 16px; margin: 4px 0; border-radius: 8px; background: #161b22; border: 1px solid #21262d; }
-    .pipeline-step .check { color: #3fb950; }
+    .live-log { background: #0d1117; color: #3fb950; font-family: monospace; padding: 10px 16px; border-radius: 8px; border: 1px solid #23863644; max-height: 200px; overflow-y: auto; font-size: 0.8rem; }
 </style>
 """, unsafe_allow_html=True)
 
 # ── Data layer ──────────────────────────────────────────────
 STORAGE = Path(__file__).parent / "storage" / "tasks"
 CACHE = Path(__file__).parent / "storage" / "cache_videos"
+
+# ── Session state ───────────────────────────────────────────
+if "running_tasks" not in st.session_state:
+    st.session_state.running_tasks = {}  # {task_id: {"status": "running|done|error", "log": [], "result": None}}
+
 
 def load_tasks():
     tasks = []
@@ -53,12 +64,6 @@ def load_tasks():
         subtitle = next(task_dir.glob("subtitle.srt"), None)
         audio = next(task_dir.glob("audio.mp3"), None)
 
-        # Read script.txt if exists
-        script_txt = ""
-        script_file = task_dir / "script.txt"
-        if script_file.exists():
-            script_txt = script_file.read_text(encoding="utf-8")
-
         tasks.append({
             "id": task_dir.name[:8] + "...",
             "full_id": task_dir.name,
@@ -67,18 +72,40 @@ def load_tasks():
             "combined": [str(v) for v in combined],
             "subtitle": str(subtitle) if subtitle else None,
             "audio": str(audio) if audio else None,
-            "script": script_txt,
             "video_count": len(final_videos),
             "modified": datetime.fromtimestamp(task_dir.stat().st_mtime),
             "success": len(final_videos) > 0,
         })
     return tasks
 
+
 def get_video_size_mb(path):
     try:
         return os.path.getsize(path) / (1024 * 1024)
-    except:
+    except Exception:
         return 0
+
+
+def _run_video_generation(task_id: str, subject: str, voice_name: str):
+    """Background thread: generate a video via MPT task service."""
+    try:
+        from app.models.schema import VideoParams
+        from app.services import task as task_service
+
+        st.session_state.running_tasks[task_id]["status"] = "running"
+
+        params = VideoParams(
+            video_subject=subject,
+            voice_name=voice_name,
+            video_aspect="9:16",
+        )
+        task_service.start(task_id, params, stop_at="video")
+        st.session_state.running_tasks[task_id]["status"] = "done"
+
+    except Exception as e:
+        st.session_state.running_tasks[task_id]["status"] = "error"
+        st.session_state.running_tasks[task_id]["error"] = str(e)
+
 
 # ── Header ──────────────────────────────────────────────────
 col1, col2, col3 = st.columns([3, 1, 1])
@@ -95,7 +122,7 @@ with col3:
     total_size = sum(
         sum(get_video_size_mb(v) for v in t["final_videos"]) for t in tasks
     )
-    st.metric("Videos Generated", f"{total_videos}  ({total_size:.1f} MB)")
+    st.metric("Videos Generated", f"{total_videos}")
 
 # ── Pipeline Visualization ──────────────────────────────────
 st.markdown('<div class="section-title">⚙️ Pipeline Flow</div>', unsafe_allow_html=True)
@@ -103,24 +130,35 @@ st.markdown('<div class="section-title">⚙️ Pipeline Flow</div>', unsafe_allo
 steps = [
     ("🤖", "LLM Script", "DeepSeek Chat"),
     ("🔍", "Search Terms", "Keyword extraction"),
-    ("🎙️", "TTS Narration", "Edge TTS / Azure"),
+    ("🎙️", "TTS Narration", "Edge TTS"),
     ("📥", "Stock Footage", "Pexels API"),
     ("🔗", "Clip Assembly", "moviepy + FFmpeg"),
     ("📝", "Subtitles", "Edge timestamp"),
-    ("🎵", "BGM + Render", "Final MP4 output"),
+    ("🎵", "BGM + Render", "Final MP4"),
 ]
 cols = st.columns(len(steps))
 for i, (icon, name, detail) in enumerate(steps):
     with cols[i]:
         st.markdown(f"""
-        <div style="text-align:center; padding:12px 4px;">
-            <div style="font-size:1.8rem;">{icon}</div>
-            <div style="color:#e6edf3; font-weight:600; font-size:0.85rem;">{name}</div>
-            <div style="color:#8b949e; font-size:0.7rem;">{detail}</div>
+        <div style="text-align:center; padding:8px 4px;">
+            <div style="font-size:1.5rem;">{icon}</div>
+            <div style="color:#e6edf3; font-weight:600; font-size:0.8rem;">{name}</div>
+            <div style="color:#8b949e; font-size:0.65rem;">{detail}</div>
         </div>
         """, unsafe_allow_html=True)
-    if i < len(steps) - 1:
-        cols[i].markdown('<div style="text-align:right; color:#30363d; font-size:1.5rem; margin-top:-40px;">→</div>', unsafe_allow_html=True)
+
+# ── Live running tasks ──────────────────────────────────────
+running = {k: v for k, v in st.session_state.running_tasks.items() if v["status"] == "running"}
+if running:
+    st.markdown('<div class="section-title">🔄 Generating Now</div>', unsafe_allow_html=True)
+    for tid, tinfo in running.items():
+        st.markdown(f"""
+        <div style="padding:12px 20px; background:#161b22; border:1px solid #d2992244; border-radius:8px; margin-bottom:8px;">
+            <span class="status-badge status-running">⏳ GENERATING</span>
+            <span style="color:#e6edf3; margin-left:8px;">Task <code>{tid[:8]}...</code></span>
+            <span style="color:#8b949e; margin-left:12px; font-size:0.85rem;">This takes 2-4 min on Render free tier</span>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ── Video Gallery ───────────────────────────────────────────
 st.markdown('<div class="section-title">📼 Generated Videos</div>', unsafe_allow_html=True)
@@ -128,13 +166,12 @@ st.markdown('<div class="section-title">📼 Generated Videos</div>', unsafe_all
 tasks = load_tasks()
 
 if not tasks:
-    st.info("No videos generated yet. Run the CLI to create your first video!")
+    st.info("No videos yet. Use the sidebar to generate your first video! 🚀")
 
 for task in tasks:
     with st.container():
-        st.markdown(f'<div class="video-card">', unsafe_allow_html=True)
+        st.markdown('<div class="video-card">', unsafe_allow_html=True)
 
-        # Header row
         c1, c2 = st.columns([4, 1])
         with c1:
             status_class = "status-success" if task["success"] else "status-failed"
@@ -142,23 +179,19 @@ for task in tasks:
             st.markdown(f"""
             <h3>Task {task['id']}</h3>
             <span class="status-badge {status_class}">{status_text}</span>
-            <span class="meta"> • {task['modified'].strftime('%Y-%m-%d %H:%M')} • {task['video_count']} video(s)</span>
+            <span class="meta"> • {task['modified'].strftime('%Y-%m-%d %H:%M UTC')} • {task['video_count']} video(s)</span>
             """, unsafe_allow_html=True)
         with c2:
             if task["final_videos"]:
                 size_mb = sum(get_video_size_mb(v) for v in task["final_videos"])
                 st.metric("Output", f"{size_mb:.1f} MB")
 
-        # Script preview
-        if task["script"]:
-            st.markdown(f'<div class="script">📝 {task["script"][:300]}{"..." if len(task["script"]) > 300 else ""}</div>', unsafe_allow_html=True)
-
         # Video player
         if task["final_videos"]:
             for vpath in task["final_videos"]:
                 if os.path.exists(vpath):
                     st.video(vpath)
-                    break  # Show first video only per task
+                    break
 
         # Files
         with st.expander("📁 Task Files"):
@@ -170,20 +203,19 @@ for task in tasks:
             with f2:
                 st.markdown("**Artifacts**")
                 if task["audio"]:
-                    st.code(f"🎵 {task['audio']}", language=None)
+                    st.markdown(f"🎵 Audio: `{task['audio']}`")
                 if task["subtitle"]:
-                    st.code(f"📝 {task['subtitle']}", language=None)
+                    st.markdown(f"📝 Subtitle: `{task['subtitle']}`")
             with f3:
-                st.markdown("**Combined Clips**")
-                for c in task["combined"]:
-                    st.code(c, language=None)
+                st.markdown("**Directory**")
+                st.code(task["task_dir"], language=None)
 
         st.markdown('</div>', unsafe_allow_html=True)
 
 # ── Sidebar ─────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## 🎬 MoneyPrinterTurbo")
-    st.markdown("*v1.3.0*")
+    st.markdown("*v1.3.0 — Cloud Edition*")
     st.divider()
 
     st.markdown("### 📊 Quick Stats")
@@ -197,27 +229,63 @@ with st.sidebar:
     st.divider()
     st.markdown("### 🗂️ Storage")
     cache_count = len(list(CACHE.glob("*.mp4"))) if CACHE.exists() else 0
-    cache_size = sum(f.stat().st_size for f in CACHE.glob("*.mp4")) / (1024*1024) if CACHE.exists() else 0
-    st.markdown(f"- {cache_count} cached videos ({cache_size:.0f} MB)")
-    task_count = len(list(STORAGE.iterdir())) if STORAGE.exists() else 0
-    st.markdown(f"- {task_count} task directories")
+    cache_size = sum(f.stat().st_size for f in CACHE.glob("*.mp4")) / (1024 * 1024) if CACHE.exists() else 0
+    disk_tasks = len(list(STORAGE.iterdir())) if STORAGE.exists() else 0
+    st.markdown(f"- {disk_tasks} task directories")
+    st.markdown(f"- {cache_count} cached clips ({cache_size:.0f} MB)")
 
     st.divider()
-    st.markdown("### 🔧 Config")
-    st.markdown("- **LLM**: DeepSeek Chat")
-    st.markdown("- **TTS**: Edge TTS (free)")
-    st.markdown("- **Footage**: Pexels")
-    st.markdown("- **Format**: 9:16 Portrait")
+    st.markdown("### 🔧 Active Config")
+    from app.config.config import app as cfg
+    llm = cfg.get("llm_provider", "deepseek")
+    voice = cfg.get("voice_name", "en-US-JennyNeural")
+    source = cfg.get("video_source", "pexels")
+    st.markdown(f"- **LLM**: {llm}")
+    st.markdown(f"- **TTS**: Edge TTS ({voice})")
+    st.markdown(f"- **Footage**: {source}")
+    st.markdown(f"- **Format**: 9:16 Portrait")
 
     st.divider()
     st.markdown("### 🚀 New Task")
-    with st.form("new_task"):
-        topic = st.text_input("Video Topic", placeholder="e.g. Product launch ad...")
-        voice = st.selectbox("Voice", ["en-US-JennyNeural", "en-US-GuyNeural", "zh-CN-XiaoxiaoNeural-Female"])
-        submit = st.form_submit_button("Generate Video")
-        if submit and topic:
-            st.info(f"Run: `python cli.py --video-subject '{topic}' --voice-name '{voice}' --video-aspect '9:16'`")
+    st.caption("Generate a video directly on the cloud.")
 
-st.markdown("""<div style="text-align:center; color:#30363d; padding:40px; font-size:0.8rem;">
-    MoneyPrinterTurbo Dashboard • Powered by DeepSeek + Edge TTS + Pexels
+    with st.form("new_task_form"):
+        topic = st.text_input(
+            "Video Topic",
+            placeholder="e.g. New eco-friendly sneakers made from bamboo...",
+        )
+        voice = st.selectbox(
+            "Voice",
+            ["en-US-JennyNeural", "en-US-GuyNeural", "en-US-AriaNeural",
+             "en-US-DavisNeural", "zh-CN-XiaoxiaoNeural-Female"],
+        )
+        submitted = st.form_submit_button("⚡ Generate Video", type="primary", use_container_width=True)
+
+        if submitted and topic.strip():
+            task_id = str(uuid.uuid4())
+            st.session_state.running_tasks[task_id] = {"status": "starting", "error": None}
+            t = threading.Thread(
+                target=_run_video_generation,
+                args=(task_id, topic.strip(), voice),
+                daemon=True,
+            )
+            t.start()
+            st.session_state.running_tasks[task_id]["thread"] = t
+            st.success(f"✅ Task `{task_id[:8]}...` started! Generating...")
+            st.caption("Page will auto-refresh. Watch the gallery for your video.")
+            st.rerun()
+
+    # ── Running task status ──
+    recent = {k: v for k, v in st.session_state.running_tasks.items() if v["status"] != "done"}
+    if recent:
+        st.divider()
+        st.markdown("### ⏳ Recent Tasks")
+        for tid, tinfo in list(recent.items())[-5:]:
+            icon = {"starting": "🟡", "running": "🔄", "error": "❌"}.get(tinfo["status"], "⚪")
+            st.markdown(f"{icon} `{tid[:8]}...` — *{tinfo['status']}*")
+            if tinfo.get("error"):
+                st.caption(f"Error: {tinfo['error']}")
+
+st.markdown("""<div style="text-align:center; color:#30363d; padding:20px; font-size:0.8rem;">
+    MPT Dashboard • Deployed on Render • DeepSeek + Edge TTS + Pexels
 </div>""", unsafe_allow_html=True)
