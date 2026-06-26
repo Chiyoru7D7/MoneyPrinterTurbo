@@ -245,7 +245,7 @@ def get_video_size_mb(path):
     except: return 0
 
 
-def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)"):
+def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)", video_source="pexels", ai_provider="comfyui"):
     try:
         from app.models.schema import VideoParams
         from app.services import task as task_service
@@ -265,14 +265,21 @@ def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)"):
 
         with _THREAD_LOCK:
             _THREAD_STORE[task_id] = {"status": "running", "error": None}
-        params = VideoParams(
+
+        params_kwargs = dict(
             video_subject=subject,
             voice_name=voice,
             video_aspect="9:16",
+            video_source=video_source,
             paragraph_number=paragraphs,
             video_script_prompt=script_prompt,
             font_name=font,
         )
+        if video_source == "ai_image":
+            params_kwargs["ai_material_provider"] = ai_provider
+            params_kwargs["ai_scene_count"] = paragraphs
+
+        params = VideoParams(**params_kwargs)
         task_service.start(task_id, params, stop_at="video")
         with _THREAD_LOCK:
             _THREAD_STORE[task_id] = {"status": "done", "error": None}
@@ -317,11 +324,23 @@ with st.sidebar:
 
     st.divider()
 
+    # Config display
+    try:
+        from app.config.config import app as cfg
+        llm_p = cfg.get("llm_provider", "deepseek")
+        fs_source = cfg.get("video_source", "pexels")
+        ai_p = cfg.get("ai_material_provider", "comfyui")
+    except Exception:
+        llm_p, fs_source, ai_p = "deepseek", "pexels", "comfyui"
+
+    fs_icon = "🤖" if fs_source == "ai_image" else "🎞️"
+
     st.markdown(f"""
     <div style="text-align:center;font-size:0.9rem;line-height:2.2;">
-        <div>🤖 LLM: <strong>deepseek</strong></div>
+        <div>🤖 LLM: <strong>{llm_p}</strong></div>
         <div>🎙️ TTS: <strong>Edge TTS</strong></div>
         <div>📐 Format: <strong>9:16</strong></div>
+        <div>{fs_icon} Source: <strong>{fs_source}</strong></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -355,7 +374,7 @@ if st.session_state.nav_page == "🎬 Dashboard":
         <div>
             <h1 style="margin:0;">Video Production</h1>
             <p class="text-secondary" style="margin:4px 0 0 0;font-size:1.1rem;">
-                AI-Powered Advertising · DeepSeek + Edge TTS + Pexels
+                AI-Powered Advertising · DeepSeek + Edge TTS + Pexels / AI Image
             </p>
         </div>
         <div style="margin-left:auto;text-align:right;">
@@ -394,7 +413,7 @@ if st.session_state.nav_page == "🎬 Dashboard":
             placeholder="e.g. New eco-friendly sneakers made from recycled ocean plastic...",
             label_visibility="collapsed",
         )
-        c1, c2 = st.columns([1, 1])
+        c1, c2, c3 = st.columns([1, 1, 1])
         with c1:
             voice = st.radio(
                 "Voice",
@@ -407,6 +426,24 @@ if st.session_state.nav_page == "🎬 Dashboard":
                 ["Short (~15s)", "Medium (~30s)", "Long (~60s)"],
                 index=0,
             )
+        with c3:
+            source = st.radio(
+                "Footage Source",
+                ["🎞️ Pexels", "🤖 AI Image"],
+                index=0,
+                help="Pexels = stock footage from the web. AI Image = ComfyUI/OpenRouter generates scene images.",
+            )
+
+        ai_provider = "comfyui"
+        if source == "🤖 AI Image":
+            ai_provider = st.radio(
+                "AI Provider",
+                ["comfyui", "openrouter"],
+                index=0,
+                help="comfyui = local GPU. openrouter = cloud API (no GPU, ~$0.04/image).",
+            )
+
+        video_source = "ai_image" if source == "🤖 AI Image" else "pexels"
 
         submitted = st.form_submit_button("⚡ Generate", type="primary", use_container_width=True)
 
@@ -415,18 +452,20 @@ if st.session_state.nav_page == "🎬 Dashboard":
             task_dir = STORAGE / task_id
 
             st.session_state.running_tasks[task_id] = {"status": "running", "error": None}
-            t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice, length), daemon=True)
+            t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice, length, video_source, ai_provider), daemon=True)
             t.start()
             st.success(f"Task `{task_id[:8]}` started!")
 
             # ── Progress bar: poll actual files ──
             import time as _time
             progress_placeholder = st.empty()
+            is_ai = (video_source == "ai_image")
+            footage_label = "Generating AI images..." if is_ai else "Downloading stock footage..."
             steps_poll = [
                 (5,  "Starting pipeline...",                           lambda: True),
                 (15, "Generating script with DeepSeek...",             lambda: (task_dir / "audio.mp3").exists()),
                 (35, "Creating voiceover with Edge TTS...",            lambda: (task_dir / "subtitle.srt").exists()),
-                (50, "Downloading stock footage...",                   lambda: len(list(task_dir.glob("temp-clip-*.mp4"))) > 0),
+                (50, footage_label,                                    lambda: len(list(task_dir.glob("temp-clip-*.mp4"))) > 0 or len(list(task_dir.glob("kb_scene_*.mp4"))) > 0),
                 (75, "Assembling video clips...",                      lambda: (task_dir / "combined-1.mp4").exists()),
                 (95, "Rendering final MP4...",                         lambda: (task_dir / "final-1.mp4").exists()),
                 (100,"Video complete!",                                lambda: (task_dir / "final-1.mp4").exists()),
@@ -519,13 +558,30 @@ else:
 
     # Pipeline
     st.markdown("<h2>🔗 Video Generation Pipeline</h2>", unsafe_allow_html=True)
+
+    try:
+        from app.config.config import app as cfg
+        fs_src = cfg.get("video_source", "pexels")
+        ai_p = cfg.get("ai_material_provider", "comfyui")
+    except Exception:
+        fs_src, ai_p = "pexels", "comfyui"
+
+    if fs_src == "ai_image":
+        footage_icon = "🎨"
+        footage_name = "AI Image Gen"
+        footage_detail = f"Flux ({ai_p})"
+    else:
+        footage_icon = "📥"
+        footage_name = "Stock Footage"
+        footage_detail = "Pexels API"
+
     st.markdown(f"""
     <div class="pipeline">
         <div class="pipe-step"><div class="icon">🤖</div><div class="name">LLM Script</div><div class="detail">DeepSeek Chat</div></div>
-        <div class="pipe-step"><div class="icon">🔍</div><div class="name">Search Terms</div><div class="detail">Keywords</div></div>
+        <div class="pipe-step"><div class="icon">🎬</div><div class="name">Director Cut</div><div class="detail">Script+Visuals</div></div>
         <div class="pipe-step"><div class="icon">🎙️</div><div class="name">TTS Narration</div><div class="detail">Edge TTS</div></div>
-        <div class="pipe-step"><div class="icon">📥</div><div class="name">Stock Footage</div><div class="detail">Pexels API</div></div>
-        <div class="pipe-step"><div class="icon">🔗</div><div class="name">Clip Assembly</div><div class="detail">moviepy</div></div>
+        <div class="pipe-step"><div class="icon">{footage_icon}</div><div class="name">{footage_name}</div><div class="detail">{footage_detail}</div></div>
+        <div class="pipe-step"><div class="icon">🎥</div><div class="name">Ken Burns</div><div class="detail">ffmpeg zoompan</div></div>
         <div class="pipe-step"><div class="icon">📝</div><div class="name">Subtitles</div><div class="detail">Edge Sync</div></div>
         <div class="pipe-step"><div class="icon">🎵</div><div class="name">Render</div><div class="detail">FFmpeg</div></div>
     </div>
@@ -541,8 +597,11 @@ else:
             llm_p = cfg.get("llm_provider", "deepseek")
             voice_p = cfg.get("voice_name", "en-US-JennyNeural")
             source = cfg.get("video_source", "pexels")
+            ai_provider = cfg.get("ai_material_provider", "comfyui")
         except Exception:
-            llm_p, voice_p, source = "deepseek", "en-US-JennyNeural", "pexels"
+            llm_p, voice_p, source, ai_provider = "deepseek", "en-US-JennyNeural", "pexels", "comfyui"
+
+        footage_label = f"{source}" + (f" + {ai_provider}" if source == "ai_image" else "")
 
         st.markdown(f"""
         <div class="card card-sm">
@@ -551,7 +610,7 @@ else:
                 <tr><td style="color:{TEXT_SECONDARY};">🧠 Model</td><td style="font-weight:700;">deepseek-chat</td></tr>
                 <tr><td style="color:{TEXT_SECONDARY};">🎙️ TTS Engine</td><td style="font-weight:700;">Edge TTS</td></tr>
                 <tr><td style="color:{TEXT_SECONDARY};">🗣️ Voice</td><td style="font-weight:700;">{voice_p}</td></tr>
-                <tr><td style="color:{TEXT_SECONDARY};">📥 Footage Source</td><td style="font-weight:700;">{source}</td></tr>
+                <tr><td style="color:{TEXT_SECONDARY};">📥 Footage Source</td><td style="font-weight:700;">{footage_label}</td></tr>
                 <tr><td style="color:{TEXT_SECONDARY};">📐 Output Format</td><td style="font-weight:700;">9:16 Portrait (1080×1920)</td></tr>
                 <tr><td style="color:{TEXT_SECONDARY};">🎞️ Codec</td><td style="font-weight:700;">libx264</td></tr>
                 <tr><td style="color:{TEXT_SECONDARY};">🌐 Deployment</td><td style="font-weight:700;">Render Cloud</td></tr>
@@ -597,13 +656,15 @@ else:
 
     # Tech stack section
     st.markdown("<br><h3>🛠️ Technology Stack</h3>", unsafe_allow_html=True)
+    footage_tech = f"{source} + {ai_provider}" if source == "ai_image" else "Pexels API"
+
     st.markdown(f"""
     <div class="card card-sm">
         <table style="width:100%;font-size:1.05rem;line-height:2.6;">
             <tr><td style="color:{TEXT_SECONDARY};width:200px;">LLM</td><td style="font-weight:700;">DeepSeek Chat API</td></tr>
             <tr><td style="color:{TEXT_SECONDARY};">Text-to-Speech</td><td style="font-weight:700;">Microsoft Edge TTS (free)</td></tr>
-            <tr><td style="color:{TEXT_SECONDARY};">Stock Footage</td><td style="font-weight:700;">Pexels API</td></tr>
-            <tr><td style="color:{TEXT_SECONDARY};">Video Composition</td><td style="font-weight:700;">moviepy 2.2.1</td></tr>
+            <tr><td style="color:{TEXT_SECONDARY};">Footage</td><td style="font-weight:700;">{footage_tech}</td></tr>
+            <tr><td style="color:{TEXT_SECONDARY};">Video Composition</td><td style="font-weight:700;">moviepy 2.2.1 + ffmpeg zoompan</td></tr>
             <tr><td style="color:{TEXT_SECONDARY};">Encoding</td><td style="font-weight:700;">FFmpeg (libx264)</td></tr>
             <tr><td style="color:{TEXT_SECONDARY};">Subtitles</td><td style="font-weight:700;">Edge TTS timestamp sync</td></tr>
             <tr><td style="color:{TEXT_SECONDARY};">Framework</td><td style="font-weight:700;">Streamlit 1.58</td></tr>
