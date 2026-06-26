@@ -116,9 +116,8 @@ class VideoParams(BaseModel):
 
     # AI Image Generation (video_source="ai_image")
     ai_scene_count: Optional[int] = 5
-    ai_image_width: Optional[int] = 540  # Flux 9:16 native
-    ai_image_height: Optional[int] = 960  # Flux 9:16 native
-    ai_material_provider: Optional[str] = "comfyui"  # "comfyui" | "openrouter"
+    ai_image_width: Optional[int] = 540  # reserved
+    ai_image_height: Optional[int] = 960  # reserved
 
 
 class SubtitleRequest(BaseModel):

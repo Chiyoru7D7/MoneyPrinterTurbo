@@ -316,36 +316,15 @@ max_queued_tasks = 100
 
 
 # ─── AI Image Generation (used when video_source = "ai_image") ───────────────
-# 素材生成提供商: "comfyui"(本地GPU) 或 "openrouter"(云端API,无需GPU)。
-# comfyui requires a running ComfyUI instance with Flux.1-dev models.
-# openrouter calls black-forest-labs/flux.2-pro via API (~$0.04/image).
-ai_material_provider = "comfyui"
-
-# ComfyUI 服务地址。本地运行时默认 localhost:8188；
-# 如果 ComfyUI 部署在其他机器上，请填写对应的地址。
-comfyui_url = "http://localhost:8188"
-# ComfyUI 图片输出目录。留空时默认使用 ComfyUI 自带的 ./comfyui_output。
-# 如果要与 ComfyUI 本地的输出目录对齐，请填写该目录的绝对路径。
-comfyui_output_dir = ""
-
-# OpenRouter API Key (used when ai_material_provider = "openrouter").
-# Get your key at https://openrouter.ai/keys
-# Also reads from the OPENROUTER_API_KEY environment variable.
-openrouter_api_key = ""
-
-# Together AI API Key (used when ai_material_provider = "together").
-# Get a key at https://api.together.ai/settings/api-keys
-# Requires $5 minimum deposit to use.
-# Also reads from the TOGETHER_API_KEY environment variable.
-together_api_key = ""
-
-# Cloudflare Workers AI (used when ai_material_provider = "cloudflare").
-# Truly FREE — ~230 images/day, no credit card required.
-# 1. Go to https://dash.cloudflare.com/ → AI → Workers AI
+# Cloudflare Workers AI — free FLUX.1-schnell, ~230 images/day, no credit card.
+# 1. Go to https://dash.cloudflare.com/ → AI → Workers AI → Use REST API
 # 2. Copy your Account ID and create an API Token
 # Also reads from CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN env vars.
 cloudflare_account_id = ""
 cloudflare_api_token = ""
+
+# AI 图片输出目录。留空时使用默认的 ./comfyui_output。
+comfyui_output_dir = ""
 
 
 [whisper]

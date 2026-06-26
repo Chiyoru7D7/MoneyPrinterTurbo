@@ -223,17 +223,12 @@ def _get_ai_image_materials(task_id, params, scene_prompts, audio_duration):
     Called when ``video_source="ai_image"``.  Replaces stock-footage
     download with AI-generated scene-specific visuals.
     """
-    logger.info("\n\n## generating AI images")
-    width = getattr(params, "ai_image_width", None) or 540
-    height = getattr(params, "ai_image_height", None) or 960
-    provider = getattr(params, "ai_material_provider", "") or ""
+    logger.info("\n\n## generating AI images via Cloudflare Workers AI")
 
-    # On Render, ComfyUI can't run — force openrouter if nothing configured
-    if not provider:
-        import os as _os
-        provider = "cloudflare" if _os.getenv("RENDER", "") else "comfyui"
+    account_id = config.app.get("cloudflare_account_id", "") or os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
+    api_token = config.app.get("cloudflare_api_token", "") or os.environ.get("CLOUDFLARE_API_TOKEN", "")
 
-    gen = image_gen.create_image_gen(provider=provider, width=width, height=height)
+    gen = image_gen.CloudflareImageGen(account_id=account_id, api_token=api_token)
     image_paths = gen.generate_scenes(scene_prompts)
 
     valid_images = [p for p in image_paths if p is not None]
