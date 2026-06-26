@@ -444,7 +444,7 @@ if st.session_state.nav_page == "🎬 Dashboard":
                 _default_provider = ""
             if not _default_provider:
                 import os as _os
-                _default_provider = "together" if _os.getenv("RENDER", "") else "comfyui"
+                _default_provider = "cloudflare" if _os.getenv("RENDER", "") else "comfyui"
             _providers = ["comfyui (local GPU)", "openrouter (cloud)", "together (cloud)", "cloudflare (free)"]
             _provider_idx = next(
                 (i for i, p in enumerate(_providers) if p.startswith(_default_provider)), 3
@@ -453,7 +453,7 @@ if st.session_state.nav_page == "🎬 Dashboard":
                 "AI Provider",
                 _providers,
                 index=_provider_idx,
-                help="comfyui = local GPU. openrouter = cloud API. together = free FLUX.1-schnell (3 months, no credit card).",
+                help="comfyui = local GPU. openrouter = cloud API. together = cloud ($5 deposit). cloudflare = FREE (~230/day, no credit card).",
             )
             # Strip the description suffix for the actual value
             ai_provider = ai_provider.split(" ")[0]
