@@ -226,7 +226,12 @@ def _get_ai_image_materials(task_id, params, scene_prompts, audio_duration):
     logger.info("\n\n## generating AI images")
     width = getattr(params, "ai_image_width", None) or 540
     height = getattr(params, "ai_image_height", None) or 960
-    provider = getattr(params, "ai_material_provider", "") or "comfyui"
+    provider = getattr(params, "ai_material_provider", "") or ""
+
+    # On Render, ComfyUI can't run — force openrouter if nothing configured
+    if not provider:
+        import os as _os
+        provider = "openrouter" if _os.getenv("RENDER", "") else "comfyui"
 
     gen = image_gen.create_image_gen(provider=provider, width=width, height=height)
     image_paths = gen.generate_scenes(scene_prompts)

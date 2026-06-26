@@ -436,12 +436,24 @@ if st.session_state.nav_page == "🎬 Dashboard":
 
         ai_provider = "comfyui"
         if source == "🤖 AI Image":
+            # Default to config's provider, or openrouter on Render (no GPU)
+            try:
+                from app.config.config import app as _cfg
+                _default_provider = _cfg.get("ai_material_provider", "") or ""
+            except Exception:
+                _default_provider = ""
+            if not _default_provider:
+                import os as _os
+                _default_provider = "openrouter" if _os.getenv("RENDER", "") else "comfyui"
+            _provider_idx = 1 if _default_provider == "openrouter" else 0
             ai_provider = st.radio(
                 "AI Provider",
-                ["comfyui", "openrouter"],
-                index=0,
-                help="comfyui = local GPU. openrouter = cloud API (no GPU, ~$0.04/image).",
+                ["comfyui (local GPU)", "openrouter (cloud API)"],
+                index=_provider_idx,
+                help="comfyui = local GPU required. openrouter = cloud API, works anywhere.",
             )
+            # Strip the description suffix for the actual value
+            ai_provider = ai_provider.split(" ")[0]
 
         video_source = "ai_image" if source == "🤖 AI Image" else "pexels"
 
