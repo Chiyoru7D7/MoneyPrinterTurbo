@@ -10,6 +10,7 @@ import sys
 import tempfile
 from contextlib import redirect_stdout
 from functools import lru_cache
+from pathlib import Path
 from typing import List
 from loguru import logger
 import numpy as np
