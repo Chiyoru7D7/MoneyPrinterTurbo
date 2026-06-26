@@ -2,10 +2,11 @@
 AI Image Generation Service for MoneyPrinterTurbo
 
 Generates scene-specific images for the ``video_source="ai_image"`` pipeline.
-Supports two backends:
+Supports three backends:
 
 - **comfyui** — local ComfyUI with Flux.1-dev (free, requires GPU)
 - **openrouter** — OpenRouter API with FLUX.2 Pro (no GPU, ~$0.04/image)
+- **together** — Together AI with FLUX.1-schnell-Free (FREE for 3 months, no GPU)
 """
 
 import base64
@@ -44,6 +45,12 @@ _OPENROUTER_IMAGE_WIDTH = 1792
 _OPENROUTER_IMAGE_HEIGHT = 1024
 _DEFAULT_PROVIDER = "comfyui"
 
+# ─── Together AI defaults ─────────────────────────────────────────────────────
+
+_TOGETHER_FREE_MODEL = "black-forest-labs/FLUX.1-schnell-Free"
+_TOGETHER_IMAGE_WIDTH = 1024
+_TOGETHER_IMAGE_HEIGHT = 1024
+
 # Style suffix appended to every visual prompt for photorealistic output.
 _STYLE_SUFFIX = (
     "Style: photorealistic, professional advertising photography, "
@@ -70,6 +77,10 @@ def create_image_gen(
     if provider == "openrouter":
         api_key = config.app.get("openrouter_api_key", "") or os.getenv("OPENROUTER_API_KEY", "")
         return OpenRouterImageGen(api_key=api_key, width=width, height=height)
+
+    if provider == "together":
+        api_key = config.app.get("together_api_key", "") or os.getenv("TOGETHER_API_KEY", "")
+        return TogetherImageGen(api_key=api_key, width=width, height=height)
 
     # Default: local ComfyUI
     return ComfyUIImageGen(width=width, height=height)
@@ -293,6 +304,80 @@ class OpenRouterImageGen(ImageGenProvider):
         output_path.write_bytes(image_bytes)
         logger.success(
             f"[OpenRouter] done: {output_path.name} "
+            f"({output_path.stat().st_size / 1024:.0f} KB)"
+        )
+        return output_path
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Together AI (cloud API, free tier available)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TogetherImageGen(ImageGenProvider):
+    """Generates images via Together AI's FLUX.1-schnell-Free endpoint.
+
+    Uses the ``together`` Python SDK with ``client.images.generate()``.
+    The free model requires no payment — just sign up at together.ai.
+    No GPU or ComfyUI needed.
+    """
+
+    def __init__(
+        self,
+        api_key: str = "",
+        width: int = 540,
+        height: int = 960,
+        model: str = "",
+        timeout: int = 120,
+    ):
+        self.width = width
+        self.height = height
+        self.timeout = timeout
+        self.model = model or _TOGETHER_FREE_MODEL
+        self.api_key = api_key
+        self.output_dir = Path(
+            config.app.get("comfyui_output_dir", "") or DEFAULT_OUTPUT_DIR
+        ).resolve()
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        if not self.api_key:
+            raise ValueError(
+                "Together AI API key is required for ai_material_provider='together'. "
+                "Set together_api_key in [app] config or TOGETHER_API_KEY env var. "
+                "Get a free key at https://api.together.ai/settings/api-keys"
+            )
+
+    def _try_generate(self, prompt: str) -> bytes:
+        """Call Together AI images API, return raw PNG bytes."""
+        from together import Together
+
+        full_prompt = f"{prompt.strip()}\n\n{_STYLE_SUFFIX}"
+        client = Together(api_key=self.api_key)
+
+        logger.info(
+            f"[Together] generating with {self.model} "
+            f"({_TOGETHER_IMAGE_WIDTH}x{_TOGETHER_IMAGE_HEIGHT})"
+        )
+
+        response = client.images.generate(
+            prompt=full_prompt,
+            model=self.model,
+            width=_TOGETHER_IMAGE_WIDTH,
+            height=_TOGETHER_IMAGE_HEIGHT,
+            steps=4,
+            response_format="base64",
+        )
+
+        image_b64 = response.data[0].b64_json
+        if not image_b64:
+            raise ValueError("Together AI returned empty image data")
+        return base64.b64decode(image_b64)
+
+    def generate(self, prompt: str, prefix: str = "mpt_scene") -> Path:
+        image_bytes = self._try_generate(prompt)
+        output_path = self.output_dir / f"{prefix}.png"
+        output_path.write_bytes(image_bytes)
+        logger.success(
+            f"[Together] done: {output_path.name} "
             f"({output_path.stat().st_size / 1024:.0f} KB)"
         )
         return output_path

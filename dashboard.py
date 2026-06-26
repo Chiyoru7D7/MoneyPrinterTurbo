@@ -444,13 +444,16 @@ if st.session_state.nav_page == "🎬 Dashboard":
                 _default_provider = ""
             if not _default_provider:
                 import os as _os
-                _default_provider = "openrouter" if _os.getenv("RENDER", "") else "comfyui"
-            _provider_idx = 1 if _default_provider == "openrouter" else 0
+                _default_provider = "together" if _os.getenv("RENDER", "") else "comfyui"
+            _providers = ["comfyui (local GPU)", "openrouter (cloud)", "together (free)"]
+            _provider_idx = next(
+                (i for i, p in enumerate(_providers) if p.startswith(_default_provider)), 2
+            )
             ai_provider = st.radio(
                 "AI Provider",
-                ["comfyui (local GPU)", "openrouter (cloud API)"],
+                _providers,
                 index=_provider_idx,
-                help="comfyui = local GPU required. openrouter = cloud API, works anywhere.",
+                help="comfyui = local GPU. openrouter = cloud API. together = free FLUX.1-schnell (3 months, no credit card).",
             )
             # Strip the description suffix for the actual value
             ai_provider = ai_provider.split(" ")[0]

@@ -333,6 +333,12 @@ comfyui_output_dir = ""
 # Also reads from the OPENROUTER_API_KEY environment variable.
 openrouter_api_key = ""
 
+# Together AI API Key (used when ai_material_provider = "together").
+# Get a free key at https://api.together.ai/settings/api-keys
+# Free model: black-forest-labs/FLUX.1-schnell-Free (3 months free, no credit card)
+# Also reads from the TOGETHER_API_KEY environment variable.
+together_api_key = ""
+
 
 [whisper]
 # Only effective when subtitle_provider is "whisper"

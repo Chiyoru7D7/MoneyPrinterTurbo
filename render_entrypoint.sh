@@ -20,8 +20,9 @@ pexels_key     = os.getenv('PEXELS_API_KEY', '')
 llm_provider   = os.getenv('LLM_PROVIDER', 'deepseek')
 voice_name     = os.getenv('VOICE_NAME', 'en-US-JennyNeural')
 video_source   = os.getenv('VIDEO_SOURCE', 'pexels')         # 'pexels' | 'ai_image'
-ai_provider    = os.getenv('AI_MATERIAL_PROVIDER', 'comfyui') # 'comfyui' | 'openrouter'
+ai_provider    = os.getenv('AI_MATERIAL_PROVIDER', 'together') # 'comfyui' | 'openrouter' | 'together'
 openrouter_key = os.getenv('OPENROUTER_API_KEY', '')
+together_key   = os.getenv('TOGETHER_API_KEY', '')
 
 config = f'''[app]
 video_source = \"{video_source}\"
@@ -53,6 +54,7 @@ subtitle_position = \"bottom\"
 # AI Image Generation
 ai_material_provider = \"{ai_provider}\"
 openrouter_api_key = \"{openrouter_key}\"
+together_api_key = \"{together_key}\"
 
 material_directory = \"\"
 
@@ -73,7 +75,7 @@ hide_log = false
 with open('$CONFIG_FILE', 'w') as f:
     f.write(config)
 
-print(f'[render_entrypoint] Config written: video_source={video_source}, ai_provider={ai_provider}, llm={llm_provider}, pexels={\"***\" if pexels_key else \"(missing)\"}, openrouter={\"***\" if openrouter_key else \"(missing)\"}, voice={voice_name}')
+print(f'[render_entrypoint] Config written: video_source={video_source}, ai_provider={ai_provider}, llm={llm_provider}, pexels={\"***\" if pexels_key else \"(missing)\"}, openrouter={\"***\" if openrouter_key else \"(missing)\"}, together={\"***\" if together_key else \"(missing)\"}, voice={voice_name}')
 "
 
 echo "[render_entrypoint] Starting MPT Dashboard on port ${PORT:-8501}..."
