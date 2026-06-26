@@ -744,8 +744,8 @@ def combine_videos(
         output_dir=output_dir,
     )
     
-    # clean temp files
-    delete_files(clip_files)
+    # clean temp files (deduplicate — looping may reuse the same clip)
+    delete_files(list(dict.fromkeys(clip_files)))
             
     logger.info("video combining completed")
     return combined_video_path
