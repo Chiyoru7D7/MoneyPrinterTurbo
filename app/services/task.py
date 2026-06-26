@@ -247,9 +247,11 @@ def _get_ai_image_materials(task_id, params, scene_prompts, audio_duration):
     per_scene = max(clip_duration, audio_duration / len(valid_images))
     durations = [per_scene] * len(valid_images)
 
+    task_dir = utils.task_dir(task_id)
     clip_paths = video.create_ken_burns_clips(
         image_paths=[str(p) for p in valid_images],
         durations=durations,
+        output_dir=task_dir,
     )
     valid_clips = [c for c in clip_paths if c is not None]
     if not valid_clips:
@@ -382,7 +384,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         )
         video_script = (result.get("script") or "").strip()
         scene_prompts = result.get("scenes", [])
-        if not video_script or not scene_prompts:
+        if not video_script or "Error: " in video_script or not scene_prompts:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
             logger.error(
                 "failed to generate script with visuals for ai_image mode"
@@ -484,6 +486,11 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         return {"materials": downloaded_videos}
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=50)
+
+    # ai_image scenes are pre-ordered by the script narrative — random
+    # shuffling would break the visual storytelling.  Force sequential.
+    if params.video_source == "ai_image":
+        params.video_concat_mode = VideoConcatMode.sequential
 
     # 仅完整视频生成流程才需要处理视频拼接模式；
     # 这样可以避免 /subtitle 和 /audio 这类请求访问不存在的字段。
