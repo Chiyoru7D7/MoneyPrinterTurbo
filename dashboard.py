@@ -445,9 +445,9 @@ if st.session_state.nav_page == "🎬 Dashboard":
             if not _default_provider:
                 import os as _os
                 _default_provider = "together" if _os.getenv("RENDER", "") else "comfyui"
-            _providers = ["comfyui (local GPU)", "openrouter (cloud)", "together (free)"]
+            _providers = ["comfyui (local GPU)", "openrouter (cloud)", "together (cloud)", "cloudflare (free)"]
             _provider_idx = next(
-                (i for i, p in enumerate(_providers) if p.startswith(_default_provider)), 2
+                (i for i, p in enumerate(_providers) if p.startswith(_default_provider)), 3
             )
             ai_provider = st.radio(
                 "AI Provider",

@@ -231,7 +231,7 @@ def _get_ai_image_materials(task_id, params, scene_prompts, audio_duration):
     # On Render, ComfyUI can't run — force openrouter if nothing configured
     if not provider:
         import os as _os
-        provider = "together" if _os.getenv("RENDER", "") else "comfyui"
+        provider = "cloudflare" if _os.getenv("RENDER", "") else "comfyui"
 
     gen = image_gen.create_image_gen(provider=provider, width=width, height=height)
     image_paths = gen.generate_scenes(scene_prompts)

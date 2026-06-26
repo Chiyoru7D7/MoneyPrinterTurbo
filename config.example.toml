@@ -334,10 +334,18 @@ comfyui_output_dir = ""
 openrouter_api_key = ""
 
 # Together AI API Key (used when ai_material_provider = "together").
-# Get a free key at https://api.together.ai/settings/api-keys
-# Free model: black-forest-labs/FLUX.1-schnell-Free (3 months free, no credit card)
+# Get a key at https://api.together.ai/settings/api-keys
+# Requires $5 minimum deposit to use.
 # Also reads from the TOGETHER_API_KEY environment variable.
 together_api_key = ""
+
+# Cloudflare Workers AI (used when ai_material_provider = "cloudflare").
+# Truly FREE — ~230 images/day, no credit card required.
+# 1. Go to https://dash.cloudflare.com/ → AI → Workers AI
+# 2. Copy your Account ID and create an API Token
+# Also reads from CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN env vars.
+cloudflare_account_id = ""
+cloudflare_api_token = ""
 
 
 [whisper]
