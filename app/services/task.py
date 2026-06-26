@@ -8,7 +8,7 @@ from loguru import logger
 from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
-from app.services import llm, material, subtitle, video, voice, upload_post
+from app.services import image_gen, llm, material, subtitle, video, voice, upload_post
 from app.services import state as sm
 from app.utils import file_security, utils
 
@@ -66,13 +66,15 @@ def generate_terms(task_id, params, video_script):
     return video_terms
 
 
-def save_script_data(task_id, video_script, video_terms, params):
+def save_script_data(task_id, video_script, video_terms, params, scene_prompts=None):
     script_file = path.join(utils.task_dir(task_id), "script.json")
     script_data = {
         "script": video_script,
         "search_terms": video_terms,
         "params": params,
     }
+    if scene_prompts:
+        script_data["scene_prompts"] = scene_prompts
 
     with open(script_file, "w", encoding="utf-8") as f:
         f.write(utils.to_json(script_data))
@@ -215,7 +217,53 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
     return subtitle_path
 
 
-def get_video_materials(task_id, params, video_terms, audio_duration):
+def _get_ai_image_materials(task_id, params, scene_prompts, audio_duration):
+    """Generate AI images via the configured provider and animate with Ken Burns.
+
+    Called when ``video_source="ai_image"``.  Replaces stock-footage
+    download with AI-generated scene-specific visuals.
+    """
+    logger.info("\n\n## generating AI images")
+    width = getattr(params, "ai_image_width", None) or 540
+    height = getattr(params, "ai_image_height", None) or 960
+    provider = getattr(params, "ai_material_provider", "") or "comfyui"
+
+    gen = image_gen.create_image_gen(provider=provider, width=width, height=height)
+    image_paths = gen.generate_scenes(scene_prompts)
+
+    valid_images = [p for p in image_paths if p is not None]
+    if not valid_images:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        logger.error("no AI images were generated")
+        return None
+
+    # Per-scene duration: evenly divide audio, with a floor of clip_duration
+    clip_duration = getattr(params, "video_clip_duration", None) or 5
+    per_scene = max(clip_duration, audio_duration / len(valid_images))
+    durations = [per_scene] * len(valid_images)
+
+    clip_paths = video.create_ken_burns_clips(
+        image_paths=[str(p) for p in valid_images],
+        durations=durations,
+    )
+    valid_clips = [c for c in clip_paths if c is not None]
+    if not valid_clips:
+        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        logger.error("no Ken Burns clips were created")
+        return None
+
+    logger.success(f"generated {len(valid_clips)} AI image video clips")
+    return valid_clips
+
+
+def get_video_materials(task_id, params, video_terms, audio_duration, scene_prompts=None):
+    if params.video_source == "ai_image" and scene_prompts:
+        return _get_ai_image_materials(
+            task_id=task_id,
+            params=params,
+            scene_prompts=scene_prompts,
+            audio_duration=audio_duration,
+        )
     if params.video_source == "local":
         logger.info("\n\n## preprocess local materials")
         materials = video.preprocess_video(
@@ -315,33 +363,63 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
-    # 1. Generate script
-    video_script = generate_script(task_id, params)
-    if not video_script or "Error: " in video_script:
-        sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
-        return
+    scene_prompts = None  # Only populated for ai_image mode
+
+    # ── Stages 1-2: Script (+ Visuals for ai_image) ─────────────────────
+    if params.video_source == "ai_image":
+        # One LLM call produces both the narration script and cinematic
+        # visual prompts — no separate search-term generation needed.
+        scene_count = getattr(params, "ai_scene_count", None) or 5
+        result = llm.generate_script_with_visuals(
+            video_subject=params.video_subject,
+            paragraph_number=scene_count,
+            language=params.video_language or "",
+        )
+        video_script = (result.get("script") or "").strip()
+        scene_prompts = result.get("scenes", [])
+        if not video_script or not scene_prompts:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error(
+                "failed to generate script with visuals for ai_image mode"
+            )
+            return
+
+        # Build human-readable "terms" from scene descriptions so the
+        # response payload and script.json stay backward-compatible.
+        video_terms = [
+            s.get("description", f"scene_{s.get('index', i)}")
+            for i, s in enumerate(scene_prompts)
+        ]
+    else:
+        # 1. Generate script
+        video_script = generate_script(task_id, params)
+        if not video_script or "Error: " in video_script:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            return
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=10)
 
     if stop_at == "script":
         sm.state.update_task(
-            task_id, state=const.TASK_STATE_COMPLETE, progress=100, script=video_script
+            task_id, state=const.TASK_STATE_COMPLETE, progress=100,
+            script=video_script
         )
         return {"script": video_script}
 
-    # 2. Generate terms
-    video_terms = ""
-    if params.video_source != "local":
+    # 2. Generate terms (skipped for ai_image and local sources)
+    video_terms = video_terms if params.video_source == "ai_image" else ""
+    if params.video_source not in ("ai_image", "local"):
         video_terms = generate_terms(task_id, params, video_script)
         if not video_terms:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
             return
 
-    save_script_data(task_id, video_script, video_terms, params)
+    save_script_data(task_id, video_script, video_terms, params, scene_prompts)
 
     if stop_at == "terms":
         sm.state.update_task(
-            task_id, state=const.TASK_STATE_COMPLETE, progress=100, terms=video_terms
+            task_id, state=const.TASK_STATE_COMPLETE, progress=100,
+            terms=video_terms
         )
         return {"script": video_script, "terms": video_terms}
 
@@ -384,7 +462,8 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
     # 5. Get video materials
     downloaded_videos = get_video_materials(
-        task_id, params, video_terms, audio_duration
+        task_id, params, video_terms, audio_duration,
+        scene_prompts=scene_prompts,
     )
     if not downloaded_videos:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)

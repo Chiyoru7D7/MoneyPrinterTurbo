@@ -1143,6 +1143,143 @@ def generate_video(
     del video_clip
 
 
+# =============================================================================
+# Ken Burns Effect — Animate still images into video clips via ffmpeg zoompan
+#
+# MoviePy's ``clip.resized(lambda t: ...)`` produces severe horizontal banding /
+# striation artifacts when applied frame-by-frame.  ffmpeg's native zoompan
+# filter is both artifact-free and faster.
+# =============================================================================
+
+
+def create_ken_burns_clip(
+    image_path: str,
+    duration: float = 5.0,
+    zoom_ratio: float = 1.15,
+    output_path: str | None = None,
+    fps: int = 30,
+) -> str:
+    """Create a Ken Burns zoom video from a still image using ffmpeg zoompan.
+
+    Args:
+        image_path: Path to the source image (any format ffmpeg can decode).
+        duration: Output clip duration in seconds.
+        zoom_ratio: Final zoom level relative to the original (1.0 = no zoom,
+            1.15 = 15% zoom-in).  Values < 1.0 produce a zoom-out.
+        output_path: Where to write the MP4.  Defaults to
+            ``<image_stem>.kb.mp4`` alongside the source.
+        fps: Output frame rate.
+
+    Returns:
+        Absolute path to the generated MP4 file.
+    """
+    from PIL import Image
+
+    if output_path is None:
+        output_path = str(Path(image_path).with_suffix(".kb.mp4"))
+
+    if os.path.exists(output_path):
+        logger.debug(f"Ken Burns clip exists, skipping: {output_path}")
+        return output_path
+
+    logger.info(
+        f"[KenBurns] {Path(image_path).name} → "
+        f"{duration:.1f}s, zoom {zoom_ratio:.2f}x"
+    )
+
+    if duration <= 0:
+        raise ValueError(f"duration must be positive, got {duration}")
+    if fps <= 0:
+        raise ValueError(f"fps must be positive, got {fps}")
+
+    with Image.open(image_path) as img:
+        sw, sh = img.size
+
+    total_frames = int(duration * fps)
+    zoom_per_frame = (zoom_ratio - 1.0) / max(total_frames, 1)
+
+    # Direction-aware clamping: min() for zoom-in, max() for zoom-out.
+    if zoom_ratio >= 1.0:
+        zexpr = f"min(zoom+{zoom_per_frame},{zoom_ratio})"
+    else:
+        zexpr = f"max(zoom+{zoom_per_frame},{zoom_ratio})"
+
+    vf = (
+        f"zoompan="
+        f"z='{zexpr}':"
+        f"d=1:"
+        f"x='iw/2-(iw/zoom/2)':"
+        f"y='ih/2-(ih/zoom/2)':"
+        f"fps={fps}:"
+        f"s={sw}x{sh}"
+    )
+
+    ffmpeg_bin = get_ffmpeg_binary()
+    cmd = [
+        ffmpeg_bin, "-y",
+        "-loop", "1",
+        "-i", image_path,
+        "-vf", vf,
+        "-t", str(duration),
+        "-frames:v", str(total_frames),
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "18",
+        "-pix_fmt", "yuv420p",
+        "-an",
+        output_path,
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"ffmpeg Ken Burns failed for {image_path}: "
+            f"{result.stderr[-500:]}"
+        )
+
+    logger.success(f"[KenBurns] done: {Path(output_path).name}")
+    return output_path
+
+
+def create_ken_burns_clips(
+    image_paths: List[str],
+    durations: List[float],
+    zoom_ratio: float = 1.12,
+    output_dir: str | None = None,
+) -> List[str]:
+    """Batch-create Ken Burns clips from multiple images.
+
+    Args:
+        image_paths: List of source image paths.
+        durations: Per-clip durations (must be same length as ``image_paths``).
+        zoom_ratio: Zoom ratio forwarded to :func:`create_ken_burns_clip`.
+        output_dir: Optional output directory override.
+
+    Returns:
+        List of MP4 paths.  A slot is ``None`` when that scene failed.
+    """
+    clips: List[str] = []
+    for i, (img_path, dur) in enumerate(
+        zip(image_paths, durations)
+    ):
+        if output_dir:
+            out = str(Path(output_dir) / f"kb_scene_{i:02d}.mp4")
+        else:
+            out = None
+        try:
+            clip_path = create_ken_burns_clip(
+                image_path=img_path,
+                duration=dur,
+                zoom_ratio=zoom_ratio,
+                output_path=out,
+            )
+            clips.append(clip_path)
+        except Exception as e:
+            logger.error(f"[KenBurns] scene {i} failed: {e}")
+            clips.append(None)
+    return clips
+
+
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
     # WebUI 在某些二次生成场景下可能传入空素材列表，这里直接返回空结果，避免抛出 NoneType 异常。
     if not materials:
