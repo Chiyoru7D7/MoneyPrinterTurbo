@@ -445,15 +445,13 @@ if st.session_state.nav_page == "🎬 Dashboard":
             if not _default_provider:
                 import os as _os
                 _default_provider = "cloudflare" if _os.getenv("RENDER", "") else "comfyui"
-            _providers = ["comfyui (local GPU)", "openrouter (cloud)", "together (cloud)", "cloudflare (free)"]
-            _provider_idx = next(
-                (i for i, p in enumerate(_providers) if p.startswith(_default_provider)), 3
-            )
+            _providers = ["cloudflare (free)", "comfyui (local GPU)"]
+            _provider_idx = 0 if _default_provider == "cloudflare" else 1
             ai_provider = st.radio(
                 "AI Provider",
                 _providers,
                 index=_provider_idx,
-                help="comfyui = local GPU. openrouter = cloud API. together = cloud ($5 deposit). cloudflare = FREE (~230/day, no credit card).",
+                help="cloudflare = Cloudflare Workers AI, FREE (~230 images/day, no credit card). comfyui = Runs on your own GPU machine, free & unlimited.",
             )
             # Strip the description suffix for the actual value
             ai_provider = ai_provider.split(" ")[0]
