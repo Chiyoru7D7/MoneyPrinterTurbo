@@ -19,6 +19,7 @@ import urllib.error
 from pathlib import Path
 from typing import List, Optional
 
+import requests
 from loguru import logger
 
 from app.config import config
