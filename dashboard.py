@@ -276,8 +276,11 @@ def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)", vi
             font_name=font,
         )
         if video_source == "ai_image":
-            params_kwargs["ai_material_provider"] = ai_provider
-            params_kwargs["ai_scene_count"] = paragraphs
+            # Visual scene count — more scenes = more dynamic video.
+            # Don't tie to paragraph count; a 15s video still benefits from 3-5 cuts.
+            _scene_map = {"Short (~15s)": 3, "Medium (~30s)": 5, "Long (~60s)": 8}
+            params_kwargs["ai_scene_count"] = _scene_map.get(length_key, 3)
+            params_kwargs["video_clip_duration"] = 5  # 5s per scene = varied visuals
 
         params = VideoParams(**params_kwargs)
         task_service.start(task_id, params, stop_at="video")

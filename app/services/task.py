@@ -371,10 +371,11 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     if params.video_source == "ai_image":
         # One LLM call produces both the narration script and cinematic
         # visual prompts — no separate search-term generation needed.
-        scene_count = getattr(params, "ai_scene_count", None) or 5
+        visual_scenes = getattr(params, "ai_scene_count", None) or 5
+        paragraphs = getattr(params, "paragraph_number", None) or visual_scenes
         result = llm.generate_script_with_visuals(
             video_subject=params.video_subject,
-            paragraph_number=scene_count,
+            paragraph_number=paragraphs,
             language=params.video_language or "",
         )
         video_script = (result.get("script") or "").strip()
@@ -385,6 +386,16 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
                 "failed to generate script with visuals for ai_image mode"
             )
             return
+
+        # If we need more visual scenes than paragraphs, break down further
+        if visual_scenes > len(scene_prompts):
+            extra = llm.generate_scene_prompts(
+                video_script=video_script,
+                scene_count=visual_scenes,
+                language=params.video_language or "",
+            )
+            if extra and len(extra) > len(scene_prompts):
+                scene_prompts = extra
 
         # Build human-readable "terms" from scene descriptions so the
         # response payload and script.json stay backward-compatible.
