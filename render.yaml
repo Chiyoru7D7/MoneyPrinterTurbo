@@ -29,6 +29,18 @@ services:
       - key: VOICE_NAME
         sync: false
 
+      # ── Upload-Post auto-publish ──
+      - key: UPLOAD_POST_ENABLED
+        sync: false
+      - key: UPLOAD_POST_API_KEY
+        sync: false
+      - key: UPLOAD_POST_USERNAME
+        sync: false
+      - key: UPLOAD_POST_PLATFORMS
+        sync: false
+      - key: UPLOAD_POST_AUTO_UPLOAD
+        sync: false
+
     disk:
       name: mpt-storage
       mountPath: /MoneyPrinterTurbo/storage

@@ -201,6 +201,18 @@ if os.getenv("LLM_PROVIDER"):
 if os.getenv("VOICE_NAME"):
     app["voice_name"] = os.getenv("VOICE_NAME")
 
+# ── Upload-Post env var overrides ──
+if os.getenv("UPLOAD_POST_ENABLED"):
+    app["upload_post_enabled"] = os.getenv("UPLOAD_POST_ENABLED").lower() in ("true", "1", "yes")
+if os.getenv("UPLOAD_POST_API_KEY"):
+    app["upload_post_api_key"] = os.getenv("UPLOAD_POST_API_KEY")
+if os.getenv("UPLOAD_POST_USERNAME"):
+    app["upload_post_username"] = os.getenv("UPLOAD_POST_USERNAME")
+if os.getenv("UPLOAD_POST_PLATFORMS"):
+    app["upload_post_platforms"] = [p.strip() for p in os.getenv("UPLOAD_POST_PLATFORMS").split(",")]
+if os.getenv("UPLOAD_POST_AUTO_UPLOAD"):
+    app["upload_post_auto_upload"] = os.getenv("UPLOAD_POST_AUTO_UPLOAD").lower() in ("true", "1", "yes")
+
 # Log loaded config for cloud debugging
 logger.info(
     "config loaded: llm_provider=%s, deepseek_key=%s, pexels_key=%s, voice=%s",
