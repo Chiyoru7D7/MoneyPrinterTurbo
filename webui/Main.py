@@ -1350,6 +1350,41 @@ with right_panel:
             config.ui["rounded_subtitle_background"] = (
                 params.rounded_subtitle_background
             )
+
+    # ====== Upload-Post 自动发布开关 ======
+    with st.container(border=True):
+        st.write("📱 Social Auto-Publish (Upload-Post)")
+
+        upload_post_enabled = st.checkbox(
+            "Enable auto-publish to Instagram",
+            value=config.app.get("upload_post_enabled", False),
+            help="After video generation, automatically publish to Instagram via Upload-Post",
+        )
+        config.app["upload_post_enabled"] = upload_post_enabled
+
+        if upload_post_enabled:
+            upload_post_auto = st.checkbox(
+                "Auto-publish after generation",
+                value=config.app.get("upload_post_auto_upload", False),
+                help="If unchecked, video will not be auto-posted even when enabled",
+            )
+            config.app["upload_post_auto_upload"] = upload_post_auto
+
+            upload_post_platforms = st.multiselect(
+                "Platforms",
+                options=["tiktok", "instagram", "youtube"],
+                default=config.app.get("upload_post_platforms", ["instagram"]),
+                help="Select platforms to cross-post to",
+            )
+            config.app["upload_post_platforms"] = upload_post_platforms
+
+            api_key_set = bool(config.app.get("upload_post_api_key", ""))
+            username_set = bool(config.app.get("upload_post_username", ""))
+            if api_key_set and username_set:
+                st.success(f"✅ Connected — @{config.app.get('upload_post_username', '')}")
+            else:
+                st.warning("⚠️ API key or username not set in config.toml")
+
     with st.expander(tr("Click to show API Key management"), expanded=False):
         st.subheader(tr("Manage Pexels, Pixabay and Coverr API Keys"))
 
