@@ -436,6 +436,11 @@ if st.session_state.nav_page == "🎬 Dashboard":
                 index=0,
                 help="Pexels = stock footage from the web. AI Image = ComfyUI/OpenRouter generates scene images.",
             )
+            auto_post = st.checkbox(
+                "📱 Post to Instagram",
+                value=False,
+                help="After generation, auto-publish to Instagram via Upload-Post",
+            )
 
         ai_provider = "cloudflare"  # Free, no GPU needed
 
@@ -444,6 +449,11 @@ if st.session_state.nav_page == "🎬 Dashboard":
         submitted = st.form_submit_button("⚡ Generate", type="primary", use_container_width=True)
 
         if submitted and topic.strip():
+            # ── Set Upload-Post from checkbox ──
+            from app.services.upload_post import upload_post_service
+            upload_post_service.enabled = auto_post
+            upload_post_service.auto_upload = auto_post
+
             task_id = str(uuid.uuid4())
             task_dir = STORAGE / task_id
 
