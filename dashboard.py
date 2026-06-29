@@ -7,7 +7,8 @@ import os
 import sys
 import uuid
 import threading
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -709,6 +710,6 @@ else:
 st.markdown(f"""
 <div class="footer">
     <strong>MPT Dashboard</strong> &bull; Deployed on Render Cloud &bull; DeepSeek + Edge TTS + Pexels
-    <br><span style="font-size:0.8rem;">{datetime.now(tz=timezone(timedelta(hours=-4))).strftime('%Y-%m-%d %H:%M')} EDT</span>
+    <br><span style="font-size:0.8rem;">{datetime.now(tz=ZoneInfo("America/New_York")).strftime('%Y-%m-%d %H:%M %Z')}</span>
 </div>
 """, unsafe_allow_html=True)
