@@ -30,7 +30,6 @@ class UploadPostService:
         video_path: str,
         title: str,
         platforms: Optional[list] = None,
-        privacy_level: str = "PUBLIC_TO_EVERYONE",
         youtube_extra: Optional[dict] = None,
     ) -> dict:
         if not self.is_configured():
@@ -53,7 +52,6 @@ class UploadPostService:
                 data = [
                     ('user', self.username),
                     ('title', title[:2200]),
-                    ('privacy_level', privacy_level),
                 ]
 
                 for platform in platforms:
@@ -79,7 +77,9 @@ class UploadPostService:
                     timeout=300,
                 )
 
-                response.raise_for_status()
+                if not response.ok:
+                    logger.error(f"Upload-Post API error ({response.status_code}): {response.text[:500]}")
+                    response.raise_for_status()
                 result = response.json()
 
                 if result.get('success'):
