@@ -216,6 +216,32 @@ if "running_tasks" not in st.session_state:
     st.session_state.running_tasks = {}
 if "nav_page" not in st.session_state:
     st.session_state.nav_page = "🎬 Dashboard"
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+# ── Access Key Gate (URL param ?key=xxx or env ACCESS_CODE) ──
+ACCESS_CODE = os.getenv("ACCESS_CODE", "")
+query_key = st.query_params.get("key", "")
+if query_key and query_key == ACCESS_CODE:
+    st.session_state.authenticated = True
+
+if ACCESS_CODE and not st.session_state.authenticated:
+    st.markdown("""
+    <div style="max-width:440px;margin:60px auto;text-align:center;">
+        <div style="font-size:3rem;margin-bottom:12px;">🔑</div>
+        <h2>Access Key Required</h2>
+    </div>
+    """, unsafe_allow_html=True)
+    with st.form("access_key_form"):
+        key = st.text_input("Enter access key", type="password", label_visibility="collapsed",
+                            placeholder="Paste your access key...")
+        if st.form_submit_button("🔓 Unlock", use_container_width=True, type="primary"):
+            if key.strip() == ACCESS_CODE:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("Invalid access key. Try again.")
+    st.stop()
 
 
 def load_tasks():

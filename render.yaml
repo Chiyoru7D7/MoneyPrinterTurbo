@@ -29,6 +29,11 @@ services:
       - key: VOICE_NAME
         sync: false
 
+      # ── Access Control ──
+      - key: ACCESS_CODE
+        value: "123456"
+        sync: false
+
       # ── Upload-Post auto-publish ──
       - key: UPLOAD_POST_ENABLED
         sync: false
