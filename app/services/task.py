@@ -2,8 +2,6 @@ import math
 import os
 import os.path
 import re
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from os import path
 
 from loguru import logger
@@ -311,6 +309,8 @@ def get_video_materials(task_id, params, video_terms, audio_duration, scene_prom
 def generate_final_videos(
     task_id, params, downloaded_videos, audio_file, subtitle_path
 ):
+    final_video_paths = []
+    combined_video_paths = []
     if params.match_materials_to_script:
         video_concat_mode = VideoConcatMode.sequential
     elif params.video_count == 1:
@@ -319,7 +319,9 @@ def generate_final_videos(
         video_concat_mode = VideoConcatMode.random
     video_transition_mode = params.video_transition_mode
 
-    def _make_one(index: int):
+    _progress = 50
+    for i in range(params.video_count):
+        index = i + 1
         combined_video_path = path.join(
             utils.task_dir(task_id), "combined-{}.mp4".format(index)
         )
@@ -335,7 +337,11 @@ def generate_final_videos(
             threads=params.n_threads,
         )
 
+        _progress += 50 / params.video_count / 2
+        sm.state.update_task(task_id, progress=_progress)
+
         final_video_path = path.join(utils.task_dir(task_id), "final-{}.mp4".format(index))
+
         logger.info("\n\n## generating video: {} => {}".format(index, final_video_path))
         video.generate_video(
             video_path=combined_video_path,
@@ -344,36 +350,13 @@ def generate_final_videos(
             output_file=final_video_path,
             params=params,
         )
-        return index, combined_video_path, final_video_path
 
-    n_videos = params.video_count
-    if n_videos == 1:
-        _, cp, fp = _make_one(1)
-        sm.state.update_task(task_id, progress=100)
-        return [fp], [cp]
+        _progress += 50 / params.video_count / 2
+        sm.state.update_task(task_id, progress=_progress)
 
-    cpu_count = os.cpu_count() or 4
-    n_threads = getattr(params, "n_threads", 2) or 2
-    max_workers = max(1, min(n_videos, min(cpu_count // n_threads, 2)))
+        final_video_paths.append(final_video_path)
+        combined_video_paths.append(combined_video_path)
 
-    results = {}
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {
-            pool.submit(_make_one, i + 1): i + 1
-            for i in range(n_videos)
-        }
-        for fut in as_completed(futures):
-            idx, cp, fp = fut.result()
-            results[idx] = (cp, fp)
-
-    final_video_paths = []
-    combined_video_paths = []
-    for i in range(1, n_videos + 1):
-        cp, fp = results[i]
-        combined_video_paths.append(cp)
-        final_video_paths.append(fp)
-
-    sm.state.update_task(task_id, progress=100)
     return final_video_paths, combined_video_paths
 
 
