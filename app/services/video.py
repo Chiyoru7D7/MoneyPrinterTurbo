@@ -686,6 +686,7 @@ def combine_videos(
                 codec=_get_configured_video_codec(),
                 logger=None,
                 fps=fps,
+                ffmpeg_params=["-preset", "ultrafast", "-crf", "28"],
             )
 
             # Store clip duration before closing
@@ -1226,9 +1227,9 @@ def create_ken_burns_clip(
         "-vf", vf,
         "-t", str(duration),
         "-frames:v", str(total_frames),
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "18",
+        "-c:v", _get_effective_video_codec(),
+        "-preset", "ultrafast",
+        "-crf", "28",
         "-pix_fmt", "yuv420p",
         "-an",
         output_path,
