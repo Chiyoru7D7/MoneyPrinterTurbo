@@ -14,6 +14,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from loguru import logger
+from app.config.config import project_version
+from app.config.config import app as cfg
 
 st.set_page_config(
     page_title="MPT Dashboard | AI Video Production",
@@ -335,7 +337,7 @@ with st.sidebar:
     <div style="text-align:center;padding:10px 0 20px 0;">
         <div style="font-size:2.8rem;">🎬</div>
         <h2 style="margin:4px 0;font-size:1.3rem !important;">MPT Console</h2>
-        <p style="margin:0;font-size:0.8rem;opacity:0.7;">v1.3.0 · Render Cloud</p>
+        <p style="margin:0;font-size:0.8rem;opacity:0.7;">v{project_version} · Render Cloud</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -355,13 +357,9 @@ with st.sidebar:
     st.divider()
 
     # Config display
-    try:
-        from app.config.config import app as cfg
-        llm_p = cfg.get("llm_provider", "deepseek")
-        fs_source = cfg.get("video_source", "pexels")
-        ai_p = cfg.get("ai_material_provider", "comfyui")
-    except Exception:
-        llm_p, fs_source, ai_p = "deepseek", "pexels", "comfyui"
+    llm_p = cfg.get("llm_provider", "deepseek")
+    fs_source = cfg.get("video_source", "pexels")
+    ai_p = cfg.get("ai_material_provider", "comfyui")
 
     fs_icon = "🤖" if fs_source == "ai_image" else "🎞️"
 
@@ -592,12 +590,8 @@ else:
     # Pipeline
     st.markdown("<h2>🔗 Video Generation Pipeline</h2>", unsafe_allow_html=True)
 
-    try:
-        from app.config.config import app as cfg
-        fs_src = cfg.get("video_source", "pexels")
-        ai_p = cfg.get("ai_material_provider", "comfyui")
-    except Exception:
-        fs_src, ai_p = "pexels", "comfyui"
+    fs_src = cfg.get("video_source", "pexels")
+    ai_p = cfg.get("ai_material_provider", "comfyui")
 
     if fs_src == "ai_image":
         footage_icon = "🎨"
@@ -625,14 +619,10 @@ else:
 
     with c1:
         st.markdown("<h3>⚙️ Active Configuration</h3>", unsafe_allow_html=True)
-        try:
-            from app.config.config import app as cfg
-            llm_p = cfg.get("llm_provider", "deepseek")
-            voice_p = cfg.get("voice_name", "en-US-JennyNeural")
-            source = cfg.get("video_source", "pexels")
-            ai_provider = cfg.get("ai_material_provider", "comfyui")
-        except Exception:
-            llm_p, voice_p, source, ai_provider = "deepseek", "en-US-JennyNeural", "pexels", "comfyui"
+        llm_p = cfg.get("llm_provider", "deepseek")
+        voice_p = cfg.get("voice_name", "en-US-JennyNeural")
+        source = cfg.get("video_source", "pexels")
+        ai_provider = cfg.get("ai_material_provider", "comfyui")
 
         footage_label = f"{source}" + (f" + {ai_provider}" if source == "ai_image" else "")
 

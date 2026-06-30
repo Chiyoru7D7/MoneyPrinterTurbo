@@ -180,7 +180,11 @@ project_description = _cfg.get(
     "<a href='https://github.com/harry0703/MoneyPrinterTurbo'>https://github.com/harry0703/MoneyPrinterTurbo</a>"
     "<br><small>Supported by <a href='https://aihubmix.com/?aff=CEve'>AIHubMix</a></small>",
 )
-project_version = _cfg.get("project_version", "1.3.0")
+try:
+    _pyproject = toml.load(f"{root_dir}/pyproject.toml")
+    project_version = _pyproject.get("project", {}).get("version", "1.3.0")
+except Exception:
+    project_version = _cfg.get("project_version", "1.3.0")
 reload_debug = False
 
 app["redis_host"] = os.getenv(
