@@ -335,7 +335,7 @@ def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)", vi
         params = VideoParams(**params_kwargs)
         task_service.start(task_id, params, stop_at="video")
 
-        _end_ts = time.time()
+        _end_ts = _time.time()
         _elapsed = _end_ts - _start_ts
 
         # Write timing data for before/after comparison
