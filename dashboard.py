@@ -247,6 +247,7 @@ if ACCESS_CODE and not st.session_state.authenticated:
     st.stop()
 
 
+@st.cache_data(ttl=30)
 def load_tasks():
     tasks = []
     if not STORAGE.exists():
@@ -267,6 +268,12 @@ def load_tasks():
             "success": len(final_videos) > 0,
         })
     return tasks
+
+
+@st.cache_data(ttl=30)
+def _get_cache_stats():
+    files = list(CACHE.glob("*.mp4")) if CACHE.exists() else []
+    return len(files), sum(f.stat().st_size for f in files) / (1024 * 1024)
 
 
 def get_video_size_mb(path):
@@ -375,8 +382,7 @@ with st.sidebar:
     st.divider()
 
     # Cache cleanup
-    cache_count = len(list(CACHE.glob("*.mp4"))) if CACHE.exists() else 0
-    cache_size = sum(f.stat().st_size for f in CACHE.glob("*.mp4")) / (1024 * 1024) if CACHE.exists() else 0
+    cache_count, cache_size = _get_cache_stats()
     st.caption(f"🎞️ Cached clips: {cache_count} files ({cache_size:.1f} MB)")
     if st.button("🗑️ Delete Cache", use_container_width=True):
         import shutil
@@ -388,6 +394,7 @@ with st.sidebar:
                     deleted += 1
                 except Exception:
                     pass
+        _get_cache_stats.clear()
         st.success(f"Deleted {deleted} cached files.")
         st.rerun()
 
@@ -485,6 +492,7 @@ if st.session_state.nav_page == "🎬 Dashboard":
             st.session_state.running_tasks[task_id] = {"status": "running", "error": None}
             t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice, length, video_source, ai_provider), daemon=True)
             t.start()
+            load_tasks.clear()
             st.success(f"Task `{task_id[:8]}` started!")
 
             # ── Progress bar: poll actual files ──
@@ -574,6 +582,7 @@ if st.session_state.nav_page == "🎬 Dashboard":
                     import shutil
                     try:
                         shutil.rmtree(task["task_dir"])
+                        load_tasks.clear()
                         st.success(f"Deleted task `{task['id_short']}`")
                         st.rerun()
                     except Exception as e:
@@ -643,8 +652,7 @@ else:
 
     with c2:
         st.markdown("<h3>💾 Storage Overview</h3>", unsafe_allow_html=True)
-        cache_count = len(list(CACHE.glob("*.mp4"))) if CACHE.exists() else 0
-        cache_size = sum(f.stat().st_size for f in CACHE.glob("*.mp4")) / (1024 * 1024) if CACHE.exists() else 0
+        cache_count, cache_size = _get_cache_stats()
         disk_tasks = len(list(STORAGE.iterdir())) if STORAGE.exists() else 0
 
         # Calculate per-task sizes
