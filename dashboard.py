@@ -257,6 +257,16 @@ def load_tasks():
             continue
         final_videos = list(task_dir.glob("final-*.mp4"))
         combined = list(task_dir.glob("combined-*.mp4"))
+        # Read timing data if exists
+        timing = {}
+        timing_file = task_dir / "timing.json"
+        if timing_file.exists():
+            import json
+            try:
+                timing = json.loads(timing_file.read_text())
+            except Exception:
+                pass
+
         tasks.append({
             "id_short": task_dir.name[:8],
             "full_id": task_dir.name,
@@ -266,6 +276,7 @@ def load_tasks():
             "video_count": len(final_videos),
             "modified": datetime.fromtimestamp(task_dir.stat().st_mtime),
             "success": len(final_videos) > 0,
+            "timing": timing,
         })
     return tasks
 
@@ -299,8 +310,11 @@ def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)", vi
         else:
             font = "STHeitiMedium.ttc"
 
+        import time as _time
+        _start_ts = _time.time()
+
         with _THREAD_LOCK:
-            _THREAD_STORE[task_id] = {"status": "running", "error": None}
+            _THREAD_STORE[task_id] = {"status": "running", "error": None, "start_time": _start_ts}
 
         params_kwargs = dict(
             video_subject=subject,
@@ -320,8 +334,28 @@ def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)", vi
 
         params = VideoParams(**params_kwargs)
         task_service.start(task_id, params, stop_at="video")
+
+        _end_ts = time.time()
+        _elapsed = _end_ts - _start_ts
+
+        # Write timing data for before/after comparison
+        import json as _json
+        _timing_path = STORAGE / task_id / "timing.json"
+        try:
+            _timing_path.parent.mkdir(parents=True, exist_ok=True)
+            _timing_path.write_text(_json.dumps({
+                "start_time": _start_ts,
+                "end_time": _end_ts,
+                "elapsed_seconds": round(_elapsed, 1),
+                "video_source": video_source,
+                "voice": voice,
+                "length": length_key,
+            }))
+        except Exception:
+            pass
+
         with _THREAD_LOCK:
-            _THREAD_STORE[task_id] = {"status": "done", "error": None}
+            _THREAD_STORE[task_id] = {"status": "done", "error": None, "elapsed": round(_elapsed, 1)}
     except Exception as e:
         with _THREAD_LOCK:
             _THREAD_STORE[task_id] = {"status": "error", "error": str(e)}
@@ -337,6 +371,17 @@ success_count = sum(1 for t in tasks if t["success"])
 total_videos = sum(t["video_count"] for t in tasks)
 total_size = sum(sum(get_video_size_mb(v) for v in t["final_videos"]) for t in tasks)
 success_rate = (success_count / total * 100) if total > 0 else 0
+
+# ── Timing stats (for before/after optimization comparison) ──
+_timed_tasks = [t for t in tasks if t.get("timing", {}).get("elapsed_seconds")]
+if _timed_tasks:
+    _elapsed_list = [t["timing"]["elapsed_seconds"] for t in _timed_tasks]
+    avg_elapsed = sum(_elapsed_list) / len(_elapsed_list)
+    min_elapsed = min(_elapsed_list)
+    max_elapsed = max(_elapsed_list)
+    total_gen_time = sum(_elapsed_list)
+else:
+    avg_elapsed = min_elapsed = max_elapsed = total_gen_time = 0
 
 # ── Sidebar Navigation ──────────────────────────────────────
 with st.sidebar:
@@ -378,6 +423,18 @@ with st.sidebar:
         <div>{fs_icon} Source: <strong>{fs_source}</strong></div>
     </div>
     """, unsafe_allow_html=True)
+
+    st.divider()
+
+    # Timing summary (for before/after optimization comparison)
+    if _timed_tasks:
+        st.markdown(f"""
+        <div style="text-align:center;font-size:0.85rem;line-height:2.0;">
+            <div style="opacity:0.6;">⏱️ Generation Timing</div>
+            <div>Avg: <strong>{avg_elapsed:.0f}s</strong> · Min: <strong>{min_elapsed:.0f}s</strong></div>
+            <div>Max: <strong>{max_elapsed:.0f}s</strong> · Tasks: <strong>{len(_timed_tasks)}</strong></div>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.divider()
 
@@ -430,7 +487,7 @@ if st.session_state.nav_page == "🎬 Dashboard":
         <div class="stat-box accent"><div class="value">{success_rate:.0f}%</div><div class="label">Success Rate</div></div>
         <div class="stat-box accent"><div class="value">{total_size:.1f} MB</div><div class="label">Total Output</div></div>
         <div class="stat-box"><div class="value">DeepSeek</div><div class="label">LLM Engine</div></div>
-        <div class="stat-box"><div class="value">9:16</div><div class="label">Format</div></div>
+        <div class="stat-box"><div class="value">{avg_elapsed:.0f}s</div><div class="label">Avg Gen Time</div></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -559,12 +616,18 @@ if st.session_state.nav_page == "🎬 Dashboard":
             status_icon = "❌"
             status_label = "Failed"
 
+        # Timing info
+        timing_str = ""
+        t = task.get("timing", {})
+        if t.get("elapsed_seconds"):
+            timing_str = f" · ⏱️ {t['elapsed_seconds']:.0f}s"
+
         size_info = ""
         if task["final_videos"]:
             mb = sum(get_video_size_mb(v) for v in task["final_videos"])
             size_info = f" · {mb:.1f} MB · {task['video_count']} video(s)"
 
-        drawer_title = f"{status_icon}  `{task['id_short']}`  —  {status_label}  ·  {modified_str}{size_info}"
+        drawer_title = f"{status_icon}  `{task['id_short']}`  —  {status_label}  ·  {modified_str}{size_info}{timing_str}"
 
         with st.expander(drawer_title, expanded=(task == tasks[0] if tasks else False)):
             if task["final_videos"]:
