@@ -395,7 +395,7 @@ def download_videos(
             logger.error(f"failed to download video: {utils.to_json(item)} => {str(e)}")
         return None
 
-    max_dl_workers = min(len(valid_video_items), 4)
+    max_dl_workers = min(len(valid_video_items), 2)
     with ThreadPoolExecutor(max_workers=max_dl_workers) as pool:
         futures = [pool.submit(_download_one, item) for item in valid_video_items]
         for fut in as_completed(futures):

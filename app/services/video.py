@@ -700,7 +700,7 @@ def combine_videos(
             return None
 
     # Process clips in parallel (CPU-bound ffmpeg per clip, independent outputs)
-    max_clip_workers = min(n_subclipped, 4)
+    max_clip_workers = min(n_subclipped, 2)
     _clip_results: dict[int, object] = {}
     with ThreadPoolExecutor(max_workers=max_clip_workers) as pool:
         futures = [
@@ -1297,7 +1297,7 @@ def create_ken_burns_clips(
             return i, None
 
     # Each clip is an independent ffmpeg subprocess (CPU-bound)
-    max_workers = min(n, 4)
+    max_workers = min(n, 2)
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = [
             pool.submit(_make_one, i, img_path, dur)

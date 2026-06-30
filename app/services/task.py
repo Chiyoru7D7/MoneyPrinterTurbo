@@ -354,7 +354,7 @@ def generate_final_videos(
 
     cpu_count = os.cpu_count() or 4
     n_threads = getattr(params, "n_threads", 2) or 2
-    max_workers = max(1, min(n_videos, cpu_count // n_threads))
+    max_workers = max(1, min(n_videos, min(cpu_count // n_threads, 2)))
 
     results = {}
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
