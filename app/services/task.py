@@ -1,6 +1,9 @@
 import math
+import os
 import os.path
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from os import path
 
 from loguru import logger
@@ -41,7 +44,7 @@ def generate_terms(task_id, params, video_script):
     if not video_terms:
         # 开启素材按文案顺序匹配后，关键词本身也必须按脚本叙事顺序生成；
         # 否则后续即使顺序下载和顺序拼接，也只能复用一组全局主题词，
-        # 无法改善“后面内容的画面提前出现”的问题。
+        # 无法改善"后面内容的画面提前出现"的问题。
         video_terms = llm.generate_terms(
             video_subject=params.video_subject,
             video_script=video_script,
@@ -308,10 +311,6 @@ def get_video_materials(task_id, params, video_terms, audio_duration, scene_prom
 def generate_final_videos(
     task_id, params, downloaded_videos, audio_file, subtitle_path
 ):
-    final_video_paths = []
-    combined_video_paths = []
-    # 多视频生成默认会打散素材以增加差异；但“按文案顺序匹配素材”追求的是
-    # 时间线稳定性和可解释性，所以开启后所有输出都使用顺序拼接。
     if params.match_materials_to_script:
         video_concat_mode = VideoConcatMode.sequential
     elif params.video_count == 1:
@@ -320,13 +319,11 @@ def generate_final_videos(
         video_concat_mode = VideoConcatMode.random
     video_transition_mode = params.video_transition_mode
 
-    _progress = 50
-    for i in range(params.video_count):
-        index = i + 1
+    def _make_one(index: int):
         combined_video_path = path.join(
-            utils.task_dir(task_id), f"combined-{index}.mp4"
+            utils.task_dir(task_id), "combined-{}.mp4".format(index)
         )
-        logger.info(f"\n\n## combining video: {index} => {combined_video_path}")
+        logger.info("\n\n## combining video: {} => {}".format(index, combined_video_path))
         video.combine_videos(
             combined_video_path=combined_video_path,
             video_paths=downloaded_videos,
@@ -338,12 +335,8 @@ def generate_final_videos(
             threads=params.n_threads,
         )
 
-        _progress += 50 / params.video_count / 2
-        sm.state.update_task(task_id, progress=_progress)
-
-        final_video_path = path.join(utils.task_dir(task_id), f"final-{index}.mp4")
-
-        logger.info(f"\n\n## generating video: {index} => {final_video_path}")
+        final_video_path = path.join(utils.task_dir(task_id), "final-{}.mp4".format(index))
+        logger.info("\n\n## generating video: {} => {}".format(index, final_video_path))
         video.generate_video(
             video_path=combined_video_path,
             audio_path=audio_file,
@@ -351,13 +344,36 @@ def generate_final_videos(
             output_file=final_video_path,
             params=params,
         )
+        return index, combined_video_path, final_video_path
 
-        _progress += 50 / params.video_count / 2
-        sm.state.update_task(task_id, progress=_progress)
+    n_videos = params.video_count
+    if n_videos == 1:
+        _, cp, fp = _make_one(1)
+        sm.state.update_task(task_id, progress=100)
+        return [fp], [cp]
 
-        final_video_paths.append(final_video_path)
-        combined_video_paths.append(combined_video_path)
+    cpu_count = os.cpu_count() or 4
+    n_threads = getattr(params, "n_threads", 2) or 2
+    max_workers = max(1, min(n_videos, cpu_count // n_threads))
 
+    results = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {
+            pool.submit(_make_one, i + 1): i + 1
+            for i in range(n_videos)
+        }
+        for fut in as_completed(futures):
+            idx, cp, fp = fut.result()
+            results[idx] = (cp, fp)
+
+    final_video_paths = []
+    combined_video_paths = []
+    for i in range(1, n_videos + 1):
+        cp, fp = results[i]
+        combined_video_paths.append(cp)
+        final_video_paths.append(fp)
+
+    sm.state.update_task(task_id, progress=100)
     return final_video_paths, combined_video_paths
 
 
@@ -370,7 +386,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     # ── Stages 1-2: Script (+ Visuals for ai_image) ─────────────────────
     if params.video_source == "ai_image":
         # One LLM call produces both the narration script and cinematic
-        # visual prompts — no separate search-term generation needed.
+        # visual prompts -- no separate search-term generation needed.
         visual_scenes = getattr(params, "ai_scene_count", None) or 5
         paragraphs = getattr(params, "paragraph_number", None) or visual_scenes
         result = llm.generate_script_with_visuals(
@@ -493,7 +509,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=50)
 
-    # ai_image scenes are pre-ordered by the script narrative — random
+    # ai_image scenes are pre-ordered by the script narrative -- random
     # shuffling would break the visual storytelling.  Force sequential.
     if params.video_source == "ai_image":
         params.video_concat_mode = VideoConcatMode.sequential

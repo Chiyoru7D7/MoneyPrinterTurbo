@@ -1,6 +1,7 @@
 import os
 import random
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 from urllib.parse import urlencode
 
@@ -335,21 +336,28 @@ def download_videos(
         )
 
     valid_video_items = []
-    valid_video_urls = []
+    valid_video_urls = set()
     found_duration = 0.0
-    for search_term in search_terms:
-        video_items = search_videos(
-            search_term=search_term,
+
+    # Search all terms in parallel (I/O-bound, independent API calls)
+    def _search_one(term: str) -> List[MaterialInfo]:
+        items = search_videos(
+            search_term=term,
             minimum_duration=max_clip_duration,
             video_aspect=video_aspect,
         )
-        logger.info(f"found {len(video_items)} videos for '{search_term}'")
+        logger.info(f"found {len(items)} videos for '{term}'")
+        return items
 
-        for item in video_items:
-            if item.url not in valid_video_urls:
-                valid_video_items.append(item)
-                valid_video_urls.append(item.url)
-                found_duration += item.duration
+    max_search_workers = min(len(search_terms), 6)
+    with ThreadPoolExecutor(max_workers=max_search_workers) as pool:
+        futures = {pool.submit(_search_one, t): t for t in search_terms}
+        for fut in as_completed(futures):
+            for item in fut.result():
+                if item.url not in valid_video_urls:
+                    valid_video_items.append(item)
+                    valid_video_urls.add(item.url)
+                    found_duration += item.duration
 
     logger.info(
         f"found total videos: {len(valid_video_items)}, required duration: {audio_duration} seconds, found duration: {found_duration} seconds"
@@ -360,25 +368,41 @@ def download_videos(
     if concat_mode_value == VideoConcatMode.random.value:
         random.shuffle(valid_video_items)
 
-    total_duration = 0.0
-    for item in valid_video_items:
+    # Download videos in parallel (I/O-bound, independent downloads)
+    total_duration: float = 0.0
+    _dur_lock = threading.Lock()
+    _dl_log_lock = threading.Lock()  # separate lock to avoid holding _dur_lock during logging
+
+    def _download_one(item: MaterialInfo):
+        nonlocal total_duration
+        with _dur_lock:
+            if total_duration > audio_duration:
+                return None
         try:
-            logger.info(f"downloading video: {item.url}")
+            with _dl_log_lock:
+                logger.info(f"downloading video: {item.url}")
             saved_video_path = save_video(
                 video_url=item.url, save_dir=material_directory
             )
             if saved_video_path:
-                logger.info(f"video saved: {saved_video_path}")
-                video_paths.append(saved_video_path)
+                with _dl_log_lock:
+                    logger.info(f"video saved: {saved_video_path}")
                 seconds = min(max_clip_duration, item.duration)
-                total_duration += seconds
-                if total_duration > audio_duration:
-                    logger.info(
-                        f"total duration of downloaded videos: {total_duration} seconds, skip downloading more"
-                    )
-                    break
+                with _dur_lock:
+                    total_duration += seconds
+                return saved_video_path
         except Exception as e:
             logger.error(f"failed to download video: {utils.to_json(item)} => {str(e)}")
+        return None
+
+    max_dl_workers = min(len(valid_video_items), 4)
+    with ThreadPoolExecutor(max_workers=max_dl_workers) as pool:
+        futures = [pool.submit(_download_one, item) for item in valid_video_items]
+        for fut in as_completed(futures):
+            result = fut.result()
+            if result:
+                video_paths.append(result)
+
     logger.success(f"downloaded {len(video_paths)} videos")
     return video_paths
 
@@ -402,26 +426,37 @@ def _download_videos_by_script_order(
     这样在不重写视频合成引擎的前提下，尽量保证素材顺序贴近文案顺序。
     """
     logger.info("downloading videos with script-order material matching")
-    candidate_groups = []
-    valid_video_urls = set()
+    valid_video_urls: set[str] = set()
     found_duration = 0.0
 
-    for search_term in search_terms:
-        video_items = search_videos(
-            search_term=search_term,
+    # Search all terms in parallel (I/O-bound, independent API calls)
+    def _search_one(term: str) -> tuple[str, list]:
+        items = search_videos(
+            search_term=term,
             minimum_duration=max_clip_duration,
             video_aspect=video_aspect,
         )
-        logger.info(f"found {len(video_items)} videos for '{search_term}'")
+        logger.info(f"found {len(items)} videos for '{term}'")
+        return term, items
 
+    # Collect results in original search_terms order
+    _term_results: dict[str, list] = {}
+    max_search_workers = min(len(search_terms), 6)
+    with ThreadPoolExecutor(max_workers=max_search_workers) as pool:
+        futures = {pool.submit(_search_one, t): t for t in search_terms}
+        for fut in as_completed(futures):
+            term, items = fut.result()
+            _term_results[term] = items
+
+    candidate_groups = []
+    for search_term in search_terms:
         term_items = []
-        for item in video_items:
+        for item in _term_results.get(search_term, []):
             if item.url in valid_video_urls:
                 continue
             term_items.append(item)
             valid_video_urls.add(item.url)
             found_duration += item.duration
-
         if term_items:
             candidate_groups.append((search_term, term_items))
 

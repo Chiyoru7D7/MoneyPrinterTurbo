@@ -274,7 +274,7 @@ def load_tasks():
             "final_videos": [str(v) for v in final_videos],
             "combined": [str(v) for v in combined],
             "video_count": len(final_videos),
-            "modified": datetime.fromtimestamp(task_dir.stat().st_mtime),
+            "modified": datetime.fromtimestamp(task_dir.stat().st_mtime, tz=ZoneInfo("America/New_York")),
             "success": len(final_videos) > 0,
             "timing": timing,
         })
@@ -608,7 +608,7 @@ if st.session_state.nav_page == "🎬 Dashboard":
         """, unsafe_allow_html=True)
 
     for task in tasks:
-        modified_str = task["modified"].strftime("%b %d, %Y · %H:%M EDT")
+        modified_str = task["modified"].strftime("%b %d, %Y · %H:%M %Z")
         if task["success"]:
             status_icon = "✅"
             status_label = "Completed"

@@ -8,6 +8,7 @@ Uses Cloudflare Workers AI with FLUX.1-schnell — free, no GPU needed.
 import base64
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Optional
 
@@ -112,19 +113,36 @@ class CloudflareImageGen:
     def generate_scenes(
         self, scene_prompts: List[dict], prefix_base: str = "mpt_scene"
     ) -> List[Optional[Path]]:
-        """Generate images for multiple scenes.
+        """Generate images for multiple scenes in parallel.
 
         A scene that fails produces ``None`` in its slot.
         """
-        results: List[Optional[Path]] = []
-        for scene in scene_prompts:
-            idx = scene.get("index", len(results))
-            prompt = scene.get("visual_prompt", scene.get("description", ""))
-            prefix = f"{prefix_base}_{idx:02d}"
+        n_scenes = len(scene_prompts)
+        if n_scenes == 0:
+            return []
+
+        # Pre-allocate result slots keyed by scene index
+        results: dict[int, Optional[Path]] = {}
+
+        def _gen_one(idx: int, prompt: str, prefix: str) -> tuple[int, Optional[Path]]:
             try:
                 path = self.generate(prompt=prompt, prefix=prefix)
-                results.append(path)
+                return idx, path
             except Exception as e:
                 logger.error(f"[ImageGen] scene {idx} failed: {e}")
-                results.append(None)
-        return results
+                return idx, None
+
+        max_workers = min(n_scenes, 3)  # cap to avoid Cloudflare rate limits
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = []
+            for i, scene in enumerate(scene_prompts):
+                idx = scene.get("index", i)
+                prompt = scene.get("visual_prompt", scene.get("description", ""))
+                prefix = f"{prefix_base}_{idx:02d}"
+                futures.append(pool.submit(_gen_one, idx, prompt, prefix))
+
+            for fut in as_completed(futures):
+                idx, path = fut.result()
+                results[idx] = path
+
+        return [results.get(scene.get("index", i)) for i, scene in enumerate(scene_prompts)]

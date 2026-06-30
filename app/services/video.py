@@ -8,6 +8,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import redirect_stdout
 from functools import lru_cache
 from pathlib import Path
@@ -608,34 +610,30 @@ def combine_videos(
     )
         
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
-    
-    # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
-    for i, subclipped_item in enumerate(subclipped_items):
-        if video_duration >= required_video_duration:
-            break
-        
-        logger.debug(
-            f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, "
-            f"source: {os.path.basename(subclipped_item.source_file_path)}, "
-            f"current duration: {video_duration:.2f}s, "
-            f"remaining: {required_video_duration - video_duration:.2f}s"
-        )
-        
+
+    n_subclipped = len(subclipped_items)
+    _vdur_lock = threading.Lock()
+
+    def _process_one(idx: int, subclipped_item) -> tuple[int, object] | None:
+        """Process a single clip. Returns (idx, SubClippedVideoClip) or None."""
+        nonlocal video_duration
+        with _vdur_lock:
+            if video_duration >= required_video_duration:
+                return None
+
         try:
             if not os.path.exists(subclipped_item.file_path):
                 logger.warning(f"skipping missing clip: {subclipped_item.file_path}")
-                continue
+                return None
             clip = _open_video_clip_quietly(subclipped_item.file_path).subclipped(
                 subclipped_item.start_time, subclipped_item.end_time
             )
             clip_duration = clip.duration
-            # Not all videos are same size, so we need to resize them
             clip_w, clip_h = clip.size
             if clip_w != video_width or clip_h != video_height:
                 clip_ratio = clip.w / clip.h
                 video_ratio = video_width / video_height
-                logger.debug(f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}")
-                
+
                 if clip_ratio == video_ratio:
                     clip = clip.resized(new_size=(video_width, video_height))
                 else:
@@ -650,7 +648,7 @@ def combine_videos(
                     background = ColorClip(size=(video_width, video_height), color=(0, 0, 0)).with_duration(clip_duration)
                     clip_resized = clip.resized(new_size=(new_width, new_height)).with_position("center")
                     clip = CompositeVideoClip([background, clip_resized])
-                    
+
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
             if transition_value in (None, VideoTransitionMode.none.value):
                 clip = clip
@@ -674,9 +672,8 @@ def combine_videos(
 
             if clip.duration > max_clip_duration:
                 clip = clip.subclipped(0, max_clip_duration)
-                
-            # wirte clip to temp file
-            clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
+
+            clip_file = f"{output_dir}/temp-clip-{idx+1}.mp4"
             _write_videofile_with_codec_fallback(
                 clip,
                 clip_file,
@@ -685,23 +682,40 @@ def combine_videos(
                 fps=fps,
             )
 
-            # Store clip duration before closing
             clip_duration_saved = clip.duration
             close_clip(clip)
 
-            processed_clips.append(
-                SubClippedVideoClip(
-                    file_path=clip_file,
-                    duration=clip_duration_saved,
-                    width=clip_w,
-                    height=clip_h,
-                    source_file_path=subclipped_item.source_file_path,
-                )
+            sc = SubClippedVideoClip(
+                file_path=clip_file,
+                duration=clip_duration_saved,
+                width=clip_w,
+                height=clip_h,
+                source_file_path=subclipped_item.source_file_path,
             )
-            video_duration += clip_duration_saved
-            
+            with _vdur_lock:
+                video_duration += clip_duration_saved
+            return idx, sc
         except Exception as e:
             logger.error(f"failed to process clip: {str(e)}")
+            return None
+
+    # Process clips in parallel (CPU-bound ffmpeg per clip, independent outputs)
+    max_clip_workers = min(n_subclipped, 4)
+    _clip_results: dict[int, object] = {}
+    with ThreadPoolExecutor(max_workers=max_clip_workers) as pool:
+        futures = [
+            pool.submit(_process_one, i, item)
+            for i, item in enumerate(subclipped_items)
+        ]
+        for fut in as_completed(futures):
+            result = fut.result()
+            if result is not None:
+                idx, sc = result
+                _clip_results[idx] = sc
+
+    # Reconstitute processed_clips in original order
+    for i in sorted(_clip_results):
+        processed_clips.append(_clip_results[i])
     
     # loop processed clips until the video duration covers the audio duration and the small safety margin.
     if video_duration < required_video_duration:
@@ -1248,7 +1262,7 @@ def create_ken_burns_clips(
     zoom_ratio: float = 1.12,
     output_dir: str | None = None,
 ) -> List[str]:
-    """Batch-create Ken Burns clips from multiple images.
+    """Batch-create Ken Burns clips from multiple images in parallel.
 
     Args:
         image_paths: List of source image paths.
@@ -1259,10 +1273,13 @@ def create_ken_burns_clips(
     Returns:
         List of MP4 paths.  A slot is ``None`` when that scene failed.
     """
-    clips: List[str] = []
-    for i, (img_path, dur) in enumerate(
-        zip(image_paths, durations)
-    ):
+    n = len(image_paths)
+    if n == 0:
+        return []
+
+    results: dict[int, str | None] = {}
+
+    def _make_one(i: int, img_path: str, dur: float) -> tuple[int, str | None]:
         if output_dir:
             out = str(Path(output_dir) / f"kb_scene_{i:02d}.mp4")
         else:
@@ -1274,11 +1291,23 @@ def create_ken_burns_clips(
                 zoom_ratio=zoom_ratio,
                 output_path=out,
             )
-            clips.append(clip_path)
+            return i, clip_path
         except Exception as e:
             logger.error(f"[KenBurns] scene {i} failed: {e}")
-            clips.append(None)
-    return clips
+            return i, None
+
+    # Each clip is an independent ffmpeg subprocess (CPU-bound)
+    max_workers = min(n, 4)
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = [
+            pool.submit(_make_one, i, img_path, dur)
+            for i, (img_path, dur) in enumerate(zip(image_paths, durations))
+        ]
+        for fut in as_completed(futures):
+            i, path = fut.result()
+            results[i] = path
+
+    return [results.get(i) for i in range(n)]
 
 
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
