@@ -221,6 +221,14 @@ if "nav_page" not in st.session_state:
     st.session_state.nav_page = "🎬 Dashboard"
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
+if "research_mode" not in st.session_state:
+    st.session_state.research_mode = None
+if "research_results" not in st.session_state:
+    st.session_state.research_results = None
+if "research_result" not in st.session_state:
+    st.session_state.research_result = None
+if "generate_topic" not in st.session_state:
+    st.session_state.generate_topic = ""
 
 # ── Access Key Gate (URL param ?key=xxx or env ACCESS_CODE) ──
 ACCESS_CODE = os.getenv("ACCESS_CODE", "")
@@ -438,6 +446,73 @@ with st.sidebar:
 
     st.divider()
 
+    # ── Video Research ─────────────────────────────────────────
+    st.markdown('<p style="font-size:0.85rem;opacity:0.7;margin:0;">🔍 Video Research</p>',
+                unsafe_allow_html=True)
+
+    research_topic = st.text_input("Search topic or paste URL",
+                                   key="research_input",
+                                   placeholder="e.g. 美妆教程 or YouTube URL...")
+    c3, c4 = st.columns(2)
+    with c3:
+        if st.button("🔍 Search", use_container_width=True, key="btn_search"):
+            if research_topic.strip():
+                with st.spinner("Searching..."):
+                    from app.services.video_analyzer import search_videos
+                    st.session_state.research_results = search_videos(research_topic.strip())
+                    st.session_state.research_mode = "search"
+                st.rerun()
+    with c4:
+        if st.button("📥 Analyze URL", use_container_width=True, key="btn_analyze"):
+            if research_topic.strip() and ("youtube.com" in research_topic or "youtu.be" in research_topic or "tiktok.com" in research_topic):
+                with st.spinner("Downloading + transcribing + extracting..."):
+                    from app.services.video_analyzer import analyze_video
+                    st.session_state.research_result = analyze_video(research_topic.strip())
+                    st.session_state.research_mode = "analyze"
+                st.rerun()
+            elif research_topic.strip() and research_topic.startswith("http"):
+                with st.spinner("Analyzing video URL..."):
+                    from app.services.video_analyzer import analyze_video
+                    st.session_state.research_result = analyze_video(research_topic.strip())
+                    st.session_state.research_mode = "analyze"
+                st.rerun()
+
+    # Show search results
+    if st.session_state.get("research_mode") == "search" and st.session_state.get("research_results"):
+        videos = st.session_state.research_results
+        st.caption("Found {} video(s)".format(len(videos)))
+        for v in videos[:5]:
+            title = (v.get("title") or v.get("id", "?"))[:60]
+            channel = v.get("channel", "")[:20]
+            if st.button("📹 {}".format(title),
+                         key="vid_{}".format(v.get("id", "")),
+                         help="{} | {} views".format(channel, v.get("view_count", "?")),
+                         use_container_width=True):
+                with st.spinner("Analyzing..."):
+                    from app.services.video_analyzer import analyze_video
+                    st.session_state.research_result = analyze_video(v["url"])
+                    st.session_state.research_mode = "analyze"
+                st.rerun()
+
+    # Show analysis result
+    if st.session_state.get("research_mode") == "analyze" and st.session_state.get("research_result"):
+        result = st.session_state.research_result
+        if result.get("error"):
+            st.error(result["error"])
+        else:
+            kw = result.get("keywords", [])
+            if kw:
+                st.success("{} keywords, {} hooks".format(len(kw), len(result.get("hooks", []))))
+                for k in kw[:5]:
+                    st.code(k, language=None)
+                if st.button("🎬 Generate with keywords", use_container_width=True, type="primary",
+                             key="btn_gen_kw"):
+                    st.session_state.generate_topic = result.get("subject", "")
+                    st.session_state.research_mode = None
+                    st.rerun()
+
+    st.divider()
+
     # Cache cleanup
     cache_count, cache_size = _get_cache_stats()
     st.caption(f"🎞️ Cached clips: {cache_count} files ({cache_size:.1f} MB)")
@@ -500,11 +575,16 @@ if st.session_state.nav_page == "🎬 Dashboard":
     """, unsafe_allow_html=True)
 
     with st.form("generate_form", clear_on_submit=False):
+        # Pre-fill topic from Video Research if available
+        _prefill = st.session_state.get("generate_topic", "")
         topic = st.text_input(
             "What should the video be about?",
+            value=_prefill,
             placeholder="e.g. New eco-friendly sneakers made from recycled ocean plastic...",
             label_visibility="collapsed",
         )
+        if _prefill:
+            st.session_state.generate_topic = ""  # clear after use
         c1, c2, c3 = st.columns([1, 1, 1])
         with c1:
             voice = st.radio(
