@@ -13,7 +13,7 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from loguru import logger
 
@@ -84,13 +84,14 @@ def search_videos(topic: str, count: int = 5) -> List[dict]:
     return videos
 
 
-def download_audio(url: str, output_dir: str | None = None) -> Optional[str]:
+def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[str], Optional[str]]:
     """Download audio-only from a video URL using yt-dlp.
 
-    Returns the path to the extracted MP3 file, or None on failure.
+    Returns (path, error). path is the MP3 file path or None; error is a
+    human-readable message or None.
     """
     if not url or not url.strip():
-        return None
+        return None, "empty URL"
 
     if output_dir:
         out_dir = Path(output_dir)
@@ -112,32 +113,48 @@ def download_audio(url: str, output_dir: str | None = None) -> Optional[str]:
                 "-o", output_template,
                 "--no-playlist",
                 "--no-progress",
-                "--quiet",
+                # Don't use --quiet so we can capture the real error
             ],
             capture_output=True,
             text=True,
             timeout=300,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        logger.error("[VideoAnalyzer] audio download failed: {}".format(exc))
-        return None
+    except subprocess.TimeoutExpired:
+        msg = "yt-dlp timed out after 300s downloading: {}".format(url)
+        logger.error("[VideoAnalyzer] {}".format(msg))
+        return None, msg
+    except OSError as exc:
+        msg = "yt-dlp not found or failed to start: {}".format(exc)
+        logger.error("[VideoAnalyzer] {}".format(msg))
+        return None, msg
 
     if result.returncode != 0:
-        logger.error("[VideoAnalyzer] yt-dlp download error: {}".format(
-            (result.stderr or "").strip()
-        ))
-        return None
+        # Extract the meaningful part of yt-dlp's error
+        stderr = (result.stderr or "").strip()
+        # Pick the last ERROR line, or fall back to first non-empty line
+        error_lines = [l for l in stderr.split("\n") if l.strip()]
+        short_err = ""
+        for line in reversed(error_lines):
+            if "ERROR:" in line:
+                short_err = line[line.index("ERROR:"):]
+                break
+        if not short_err and error_lines:
+            short_err = error_lines[-1]
+        msg = short_err or "yt-dlp exit code {}".format(result.returncode)
+        logger.error("[VideoAnalyzer] yt-dlp error: {}".format(msg))
+        return None, msg
 
     # Find the downloaded MP3
     mp3_files = list(out_dir.glob("*.mp3"))
     if not mp3_files:
-        logger.error("[VideoAnalyzer] no MP3 found after download in {}".format(out_dir))
-        return None
+        msg = "no MP3 found after download in {}".format(out_dir)
+        logger.error("[VideoAnalyzer] {}".format(msg))
+        return None, msg
 
     audio_path = str(mp3_files[0])
     logger.info("[VideoAnalyzer] audio saved: {}".format(audio_path))
-    return audio_path
+    return audio_path, None
 
 
 def transcribe_audio(audio_path: str) -> str:
@@ -309,9 +326,9 @@ def analyze_video(url_or_topic: str, is_topic: bool = False) -> dict:
         source_title = videos[0]["title"]
 
     # Download audio
-    audio_path = download_audio(source_url)
+    audio_path, dl_error = download_audio(source_url)
     if not audio_path:
-        error = "Failed to download audio from: {}".format(source_url)
+        error = "Failed to download audio: {}".format(dl_error or source_url)
         return {"subject": "", "keywords": [], "hooks": [], "tone": "",
                 "transcript": "", "source_url": source_url, "source_title": source_title,
                 "error": error}
