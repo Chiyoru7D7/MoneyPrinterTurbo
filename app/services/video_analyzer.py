@@ -195,6 +195,78 @@ def _download_via_piped(vid: str, output_dir: Path) -> Optional[str]:
     return None
 
 
+def _download_via_cobalt(vid: str, output_dir: Path) -> Optional[str]:
+    """Download YouTube audio via Cobalt API — no cookies, community-maintained.
+
+    Uses public Cobalt instances. Returns MP3 path or None.
+    """
+    import requests as req
+
+    cobalt_instances = [
+        "https://api.cobalt.tools",
+        "https://co.wuk.sh",
+    ]
+
+    for api in cobalt_instances:
+        try:
+            resp = req.post(
+                api + "/",
+                json={
+                    "url": "https://www.youtube.com/watch?v={}".format(vid),
+                    "downloadMode": "audio",
+                    "audioFormat": "mp3",
+                    "audioBitrate": "128",
+                    "filenameStyle": "basic",
+                },
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+                timeout=30,
+            )
+        except Exception as exc:
+            logger.warning("[VideoAnalyzer] Cobalt {} request error: {}".format(api, exc))
+            continue
+
+        if resp.status_code != 200:
+            logger.warning("[VideoAnalyzer] Cobalt {} returned {}".format(api, resp.status_code))
+            continue
+
+        try:
+            data = resp.json()
+        except Exception:
+            continue
+
+        if data.get("status") not in ("tunnel", "redirect"):
+            logger.warning("[VideoAnalyzer] Cobalt {} unexpected status: {}".format(api, data.get("status")))
+            continue
+
+        audio_url = data.get("url", "")
+        if not audio_url:
+            continue
+
+        logger.info("[VideoAnalyzer] Cobalt: downloading from {}...".format(api))
+
+        # Download the audio file directly
+        try:
+            audio_resp = req.get(audio_url, timeout=300, stream=True)
+            if audio_resp.status_code != 200:
+                continue
+
+            output_path = output_dir / "{}.mp3".format(vid)
+            with open(output_path, "wb") as f:
+                for chunk in audio_resp.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+            if output_path.stat().st_size > 0:
+                return str(output_path)
+        except Exception as exc:
+            logger.warning("[VideoAnalyzer] Cobalt {} download error: {}".format(api, exc))
+            continue
+
+    return None
+
+
 def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[str], Optional[str]]:
     """Download audio-only from a video URL using yt-dlp.
 
@@ -297,13 +369,20 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
         logger.warning("[VideoAnalyzer] attempt {} failed, retrying...".format(i + 1))
 
     # If all direct strategies failed, try Piped API (no cookies, no IP blocks)
-    piped_path = None
     if vid and result.returncode != 0:
         logger.info("[VideoAnalyzer] trying Piped API fallback...")
         piped_path = _download_via_piped(vid, out_dir)
         if piped_path:
             logger.info("[VideoAnalyzer] Piped download success: {}".format(piped_path))
             return piped_path, None
+
+    # Try Cobalt API as last resort (no cookies, no IP blocks)
+    if vid and result.returncode != 0:
+        logger.info("[VideoAnalyzer] trying Cobalt API fallback...")
+        cobalt_path = _download_via_cobalt(vid, out_dir)
+        if cobalt_path:
+            logger.info("[VideoAnalyzer] Cobalt download success: {}".format(cobalt_path))
+            return cobalt_path, None
 
     if result.returncode != 0:
         action = (
