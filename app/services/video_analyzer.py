@@ -27,19 +27,25 @@ def _yt_dlp_binary() -> str:
 
 
 def _yt_dlp_cookies_args() -> list:
-    """Return --cookies args if YT_DLP_COOKIES_PATH is set, or auto-detect cookies file in project root."""
+    """Return --cookies args if YT_DLP_COOKIES_PATH is set, or auto-detect cookies file."""
     path = os.getenv("YT_DLP_COOKIES_PATH", "")
     if path and os.path.isfile(path):
+        logger.info("[VideoAnalyzer] using cookies from env: {}".format(path))
         return ["--cookies", path]
+    if path:
+        logger.warning("[VideoAnalyzer] YT_DLP_COOKIES_PATH set but file not found: {}".format(path))
 
-    # Auto-detect: look for *cookies*.txt in project root
+    # Auto-detect: look for *cookies*.txt in project root + storage dir
     root = utils.root_dir()
-    for name in ("www.youtube.com_cookies.txt", "cookies.txt", "youtube_cookies.txt"):
-        candidate = os.path.join(root, name)
-        if os.path.isfile(candidate):
-            logger.info("[VideoAnalyzer] auto-detected cookies: {}".format(candidate))
-            return ["--cookies", candidate]
+    storage = os.path.join(root, "storage")
+    for base in (root, storage):
+        for name in ("www.youtube.com_cookies.txt", "cookies.txt", "youtube_cookies.txt"):
+            candidate = os.path.join(base, name)
+            if os.path.isfile(candidate):
+                logger.info("[VideoAnalyzer] auto-detected cookies: {}".format(candidate))
+                return ["--cookies", candidate]
 
+    logger.warning("[VideoAnalyzer] no cookies file found (checked: {}, {})".format(root, storage))
     return []
 
 
@@ -132,9 +138,17 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
     ]
 
     cookie_args = _yt_dlp_cookies_args()
-    if not cookie_args:
-        logger.warning("[VideoAnalyzer] no cookies set — YouTube will likely block. "
-                       "Set YT_DLP_COOKIES_PATH env var to a cookies.txt file.")
+    if cookie_args:
+        logger.info("[VideoAnalyzer] using cookies: {}".format(cookie_args))
+    else:
+        logger.warning("[VideoAnalyzer] no cookies set — YouTube will likely block")
+
+    # Common browser user-agent matching the cookies export
+    user_agent = [
+        "--user-agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    ]
 
     last_error = None
     for i, extra_args in enumerate(strategies):
@@ -146,7 +160,7 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
                 "--audio-format", "mp3",
                 "--audio-quality", "128K",
                 "-o", output_template,
-            ] + extra_args + cookie_args
+            ] + extra_args + cookie_args + user_agent
             logger.info("[VideoAnalyzer] attempt {}: {}".format(i + 1, extra_args[1]))
 
             result = subprocess.run(
