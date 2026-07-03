@@ -27,10 +27,19 @@ def _yt_dlp_binary() -> str:
 
 
 def _yt_dlp_cookies_args() -> list:
-    """Return --cookies args if YT_DLP_COOKIES_PATH is set."""
+    """Return --cookies args if YT_DLP_COOKIES_PATH is set, or auto-detect cookies file in project root."""
     path = os.getenv("YT_DLP_COOKIES_PATH", "")
     if path and os.path.isfile(path):
         return ["--cookies", path]
+
+    # Auto-detect: look for *cookies*.txt in project root
+    root = utils.root_dir()
+    for name in ("www.youtube.com_cookies.txt", "cookies.txt", "youtube_cookies.txt"):
+        candidate = os.path.join(root, name)
+        if os.path.isfile(candidate):
+            logger.info("[VideoAnalyzer] auto-detected cookies: {}".format(candidate))
+            return ["--cookies", candidate]
+
     return []
 
 
