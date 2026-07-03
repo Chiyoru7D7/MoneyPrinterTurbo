@@ -108,6 +108,30 @@ def search_videos(topic: str, count: int = 5) -> List[dict]:
     return videos
 
 
+# Free Invidious instances — no auth needed, YouTube proxy
+_INVIDIOUS_INSTANCES = [
+    "https://invidious.nerdvpn.de",
+    "https://inv.nadeko.net",
+    "https://yewtu.be",
+    "https://invidious.fdn.fr",
+    "https://vid.puffyan.us",
+]
+
+
+def _youtube_id(url: str) -> Optional[str]:
+    """Extract YouTube video ID from URL."""
+    import re
+    patterns = [
+        r"(?:v=|/v/|youtu\.be/|/embed/|/shorts/)([A-Za-z0-9_-]{11})",
+        r"^([A-Za-z0-9_-]{11})$",
+    ]
+    for pat in patterns:
+        m = re.search(pat, url)
+        if m:
+            return m.group(1)
+    return None
+
+
 def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[str], Optional[str]]:
     """Download audio-only from a video URL using yt-dlp.
 
@@ -157,7 +181,14 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
         proxy_args = ["--proxy", proxy_url]
         logger.info("[VideoAnalyzer] using proxy: {}".format(proxy_url.split("@")[-1] if "@" in proxy_url else proxy_url))
 
+    # Build Invidious fallback URLs (no cookies/proxy needed)
+    vid = _youtube_id(url)
+    invidious_urls = []
+    if vid:
+        invidious_urls = ["{}/watch?v={}".format(inst, vid) for inst in _INVIDIOUS_INSTANCES]
+
     last_error = None
+    result = None
     for i, extra_args in enumerate(strategies):
         try:
             cmd = [
@@ -206,19 +237,47 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
 
         logger.warning("[VideoAnalyzer] attempt {} failed, retrying...".format(i + 1))
 
+    # If all direct strategies failed, try Invidious proxies (no cookies needed)
+    for inv_url in invidious_urls:
+        if result.returncode == 0:
+            break
+        logger.info("[VideoAnalyzer] Invidious fallback: {}".format(inv_url))
+        try:
+            result = subprocess.run(
+                [
+                    _yt_dlp_binary(),
+                    inv_url,
+                    "-x",
+                    "--audio-format", "mp3",
+                    "--audio-quality", "128K",
+                    "-o", output_template,
+                    "--no-playlist",
+                    "--no-progress",
+                ] + user_agent + proxy_args,
+                capture_output=True,
+                text=True,
+                timeout=300,
+                check=False,
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            continue
+
+        if result.returncode != 0:
+            stderr = (result.stderr or "").strip()
+            logger.warning("[VideoAnalyzer] Invidious failed: {}".format(stderr[:200]))
+            last_error = "Invidious proxy failed (all {} instances)".format(len(invidious_urls))
+            continue
+
     if result.returncode != 0:
         action = (
-            "YouTube requires login. Get cookies.txt:\n"
-            "1. Install 'Get cookies.txt LOCALLY' browser extension\n"
-            "2. Log into YouTube in your browser\n"
-            "3. Export cookies.txt from the extension\n"
-            "4. Set YT_DLP_COOKIES_PATH to the file path\n"
-            "Or paste a non-YouTube video URL."
-        ) if not cookie_args else (
-            "Cookies may be expired. Re-export a fresh cookies.txt from your browser."
+            "YouTube blocked this server IP. Upload cookies via sidebar "
+            "or set YT_DLP_PROXY to a SOCKS5 proxy."
+        ) if cookie_args else (
+            "YouTube blocked this server IP + no cookies uploaded. "
+            "Upload cookies.txt in sidebar or set YT_DLP_PROXY env var."
         )
         combined = "{} — {}".format(last_error, action)
-        logger.error("[VideoAnalyzer] all attempts failed")
+        logger.error("[VideoAnalyzer] all attempts (YouTube + Invidious) failed")
         return None, combined
 
     # Find the downloaded MP3
