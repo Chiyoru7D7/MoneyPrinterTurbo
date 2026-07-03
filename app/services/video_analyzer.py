@@ -114,12 +114,18 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
     output_template = str(out_dir / "%(id)s.%(ext)s")
     logger.info("[VideoAnalyzer] downloading audio from: {}".format(url))
 
-    # Strategy 1: user's config (cookies if set)
-    # Strategy 2: Android client (less bot-detection)
+    # Strategy 1-3: try different player clients
+    # All may require cookies — YouTube blocks datacenter IPs aggressively
     strategies = [
         ["--extractor-args", "youtube:player_client=web", "--no-playlist", "--no-progress"],
         ["--extractor-args", "youtube:player_client=android", "--no-playlist", "--no-progress"],
+        ["--extractor-args", "youtube:player_client=ios", "--no-playlist", "--no-progress"],
     ]
+
+    cookie_args = _yt_dlp_cookies_args()
+    if not cookie_args:
+        logger.warning("[VideoAnalyzer] no cookies set — YouTube will likely block. "
+                       "Set YT_DLP_COOKIES_PATH env var to a cookies.txt file.")
 
     last_error = None
     for i, extra_args in enumerate(strategies):
@@ -131,7 +137,7 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
                 "--audio-format", "mp3",
                 "--audio-quality", "128K",
                 "-o", output_template,
-            ] + extra_args + _yt_dlp_cookies_args()
+            ] + extra_args + cookie_args
             logger.info("[VideoAnalyzer] attempt {}: {}".format(i + 1, extra_args[1]))
 
             result = subprocess.run(
@@ -153,7 +159,6 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
         if result.returncode == 0:
             break  # success
 
-        # Extract the meaningful part of yt-dlp's error
         stderr = (result.stderr or "").strip()
         error_lines = [l for l in stderr.split("\n") if l.strip()]
         short_err = ""
@@ -165,16 +170,26 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
             short_err = error_lines[-1]
         last_error = short_err or "yt-dlp exit code {}".format(result.returncode)
 
-        # Only retry if it's an auth/bot error; otherwise give up
         if "Sign in" not in stderr and "bot" not in stderr.lower():
             logger.error("[VideoAnalyzer] yt-dlp error: {}".format(last_error))
             return None, last_error
 
-        logger.warning("[VideoAnalyzer] attempt {} failed, trying fallback...".format(i + 1))
+        logger.warning("[VideoAnalyzer] attempt {} failed, retrying...".format(i + 1))
 
     if result.returncode != 0:
-        logger.error("[VideoAnalyzer] all attempts failed: {}".format(last_error))
-        return None, last_error
+        action = (
+            "YouTube requires login. Get cookies.txt:\n"
+            "1. Install 'Get cookies.txt LOCALLY' browser extension\n"
+            "2. Log into YouTube in your browser\n"
+            "3. Export cookies.txt from the extension\n"
+            "4. Set YT_DLP_COOKIES_PATH to the file path\n"
+            "Or paste a non-YouTube video URL."
+        ) if not cookie_args else (
+            "Cookies may be expired. Re-export a fresh cookies.txt from your browser."
+        )
+        combined = "{} — {}".format(last_error, action)
+        logger.error("[VideoAnalyzer] all attempts failed")
+        return None, combined
 
     # Find the downloaded MP3
     mp3_files = list(out_dir.glob("*.mp3"))
