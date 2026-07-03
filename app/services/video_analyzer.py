@@ -26,6 +26,14 @@ def _yt_dlp_binary() -> str:
     return "yt-dlp"
 
 
+def _yt_dlp_cookies_args() -> list:
+    """Return --cookies args if YT_DLP_COOKIES_PATH is set."""
+    path = os.getenv("YT_DLP_COOKIES_PATH", "")
+    if path and os.path.isfile(path):
+        return ["--cookies", path]
+    return []
+
+
 def search_videos(topic: str, count: int = 5) -> List[dict]:
     """Search for trending videos on a topic using yt-dlp's YouTube search.
 
@@ -38,8 +46,7 @@ def search_videos(topic: str, count: int = 5) -> List[dict]:
     logger.info("[VideoAnalyzer] searching: {}".format(query))
 
     try:
-        result = subprocess.run(
-            [
+        cmd = [
                 _yt_dlp_binary(),
                 query,
                 "--dump-json",
@@ -47,7 +54,9 @@ def search_videos(topic: str, count: int = 5) -> List[dict]:
                 "--flat-playlist",
                 "--skip-download",
                 "--quiet",
-            ],
+            ] + _yt_dlp_cookies_args()
+        result = subprocess.run(
+            cmd,
             capture_output=True,
             text=True,
             timeout=60,
@@ -89,6 +98,9 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
 
     Returns (path, error). path is the MP3 file path or None; error is a
     human-readable message or None.
+
+    Tries first with the user's config (cookies if set), then falls back to
+    the Android player client which is less strict about bot detection.
     """
     if not url or not url.strip():
         return None, "empty URL"
@@ -102,37 +114,47 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
     output_template = str(out_dir / "%(id)s.%(ext)s")
     logger.info("[VideoAnalyzer] downloading audio from: {}".format(url))
 
-    try:
-        result = subprocess.run(
-            [
+    # Strategy 1: user's config (cookies if set)
+    # Strategy 2: Android client (less bot-detection)
+    strategies = [
+        ["--extractor-args", "youtube:player_client=web", "--no-playlist", "--no-progress"],
+        ["--extractor-args", "youtube:player_client=android", "--no-playlist", "--no-progress"],
+    ]
+
+    last_error = None
+    for i, extra_args in enumerate(strategies):
+        try:
+            cmd = [
                 _yt_dlp_binary(),
                 url,
-                "-x",                      # extract audio
+                "-x",
                 "--audio-format", "mp3",
                 "--audio-quality", "128K",
                 "-o", output_template,
-                "--no-playlist",
-                "--no-progress",
-                # Don't use --quiet so we can capture the real error
-            ],
-            capture_output=True,
-            text=True,
-            timeout=300,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        msg = "yt-dlp timed out after 300s downloading: {}".format(url)
-        logger.error("[VideoAnalyzer] {}".format(msg))
-        return None, msg
-    except OSError as exc:
-        msg = "yt-dlp not found or failed to start: {}".format(exc)
-        logger.error("[VideoAnalyzer] {}".format(msg))
-        return None, msg
+            ] + extra_args + _yt_dlp_cookies_args()
+            logger.info("[VideoAnalyzer] attempt {}: {}".format(i + 1, extra_args[1]))
 
-    if result.returncode != 0:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            msg = "yt-dlp timed out after 300s downloading: {}".format(url)
+            logger.error("[VideoAnalyzer] {}".format(msg))
+            return None, msg
+        except OSError as exc:
+            msg = "yt-dlp not found or failed to start: {}".format(exc)
+            logger.error("[VideoAnalyzer] {}".format(msg))
+            return None, msg
+
+        if result.returncode == 0:
+            break  # success
+
         # Extract the meaningful part of yt-dlp's error
         stderr = (result.stderr or "").strip()
-        # Pick the last ERROR line, or fall back to first non-empty line
         error_lines = [l for l in stderr.split("\n") if l.strip()]
         short_err = ""
         for line in reversed(error_lines):
@@ -141,9 +163,18 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
                 break
         if not short_err and error_lines:
             short_err = error_lines[-1]
-        msg = short_err or "yt-dlp exit code {}".format(result.returncode)
-        logger.error("[VideoAnalyzer] yt-dlp error: {}".format(msg))
-        return None, msg
+        last_error = short_err or "yt-dlp exit code {}".format(result.returncode)
+
+        # Only retry if it's an auth/bot error; otherwise give up
+        if "Sign in" not in stderr and "bot" not in stderr.lower():
+            logger.error("[VideoAnalyzer] yt-dlp error: {}".format(last_error))
+            return None, last_error
+
+        logger.warning("[VideoAnalyzer] attempt {} failed, trying fallback...".format(i + 1))
+
+    if result.returncode != 0:
+        logger.error("[VideoAnalyzer] all attempts failed: {}".format(last_error))
+        return None, last_error
 
     # Find the downloaded MP3
     mp3_files = list(out_dir.glob("*.mp3"))
