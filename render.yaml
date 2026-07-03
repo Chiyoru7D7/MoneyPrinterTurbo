@@ -33,6 +33,10 @@ services:
       - key: ACCESS_CODE
         value: "123456"
 
+      # ── yt-dlp cookies for YouTube auth ──
+      - key: YT_DLP_COOKIES_PATH
+        sync: false
+
       # ── Upload-Post auto-publish ──
       - key: UPLOAD_POST_ENABLED
         sync: false
