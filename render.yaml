@@ -36,6 +36,8 @@ services:
       # ── yt-dlp cookies for YouTube auth ──
       - key: YT_DLP_COOKIES_PATH
         sync: false
+      - key: YT_DLP_PROXY
+        sync: false
 
       # ── Upload-Post auto-publish ──
       - key: UPLOAD_POST_ENABLED

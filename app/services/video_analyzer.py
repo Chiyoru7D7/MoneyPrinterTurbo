@@ -150,6 +150,13 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
         "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     ]
 
+    # Optional proxy (for Render/cloud — bypass YouTube IP blocks)
+    proxy_args = []
+    proxy_url = os.getenv("YT_DLP_PROXY", "")
+    if proxy_url:
+        proxy_args = ["--proxy", proxy_url]
+        logger.info("[VideoAnalyzer] using proxy: {}".format(proxy_url.split("@")[-1] if "@" in proxy_url else proxy_url))
+
     last_error = None
     for i, extra_args in enumerate(strategies):
         try:
@@ -160,7 +167,7 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
                 "--audio-format", "mp3",
                 "--audio-quality", "128K",
                 "-o", output_template,
-            ] + extra_args + cookie_args + user_agent
+            ] + extra_args + cookie_args + user_agent + proxy_args
             logger.info("[VideoAnalyzer] attempt {}: {}".format(i + 1, extra_args[1]))
 
             result = subprocess.run(
