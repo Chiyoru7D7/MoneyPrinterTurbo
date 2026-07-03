@@ -536,6 +536,25 @@ with st.sidebar:
 
     st.divider()
 
+    # ── YouTube Cookies Upload ──
+    st.markdown('<p style="font-size:0.85rem;opacity:0.7;margin:0;">🍪 YouTube Cookies</p>',
+                unsafe_allow_html=True)
+    cookies_file = st.file_uploader("Upload cookies.txt",
+                                     type=["txt"],
+                                     key="cookies_uploader",
+                                     label_visibility="collapsed")
+    if cookies_file is not None:
+        import shutil
+        storage = Path("storage") if cfg.get("material_directory") else Path("storage")
+        storage.mkdir(parents=True, exist_ok=True)
+        dest = storage / "cookies.txt"
+        with open(dest, "wb") as f:
+            f.write(cookies_file.getbuffer())
+        st.success("cookies saved ✓")
+        st.caption("Path: {}".format(str(dest.resolve())))
+
+    st.divider()
+
     # Cache cleanup
     cache_count, cache_size = _get_cache_stats()
     st.caption(f"🎞️ Cached clips: {cache_count} files ({cache_size:.1f} MB)")
