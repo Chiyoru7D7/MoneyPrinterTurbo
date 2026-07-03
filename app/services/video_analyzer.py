@@ -108,16 +108,6 @@ def search_videos(topic: str, count: int = 5) -> List[dict]:
     return videos
 
 
-# Free Invidious instances — no auth needed, YouTube proxy
-_INVIDIOUS_INSTANCES = [
-    "https://invidious.nerdvpn.de",
-    "https://inv.nadeko.net",
-    "https://yewtu.be",
-    "https://invidious.fdn.fr",
-    "https://vid.puffyan.us",
-]
-
-
 def _youtube_id(url: str) -> Optional[str]:
     """Extract YouTube video ID from URL."""
     import re
@@ -129,6 +119,79 @@ def _youtube_id(url: str) -> Optional[str]:
         m = re.search(pat, url)
         if m:
             return m.group(1)
+    return None
+
+
+def _download_via_piped(vid: str, output_dir: Path) -> Optional[str]:
+    """Download YouTube audio via Piped API — no cookies, no IP restrictions.
+
+    Piped is a privacy-friendly YouTube frontend. Its API returns direct
+    audio stream URLs that we download with yt-dlp/requests.
+
+    Returns MP3 path or None.
+    """
+    import requests as req
+
+    piped_apis = [
+        "https://pipedapi.kavin.rocks",
+        "https://pipedapi.tokhmi.xyz",
+        "https://pipedapi.moomoo.me",
+    ]
+
+    for api in piped_apis:
+        try:
+            # Get stream info from Piped
+            resp = req.get(
+                "{}/streams/{}".format(api, vid),
+                timeout=15,
+                headers={"User-Agent": "MPT/3.0"},
+            )
+            if resp.status_code != 200:
+                logger.warning("[VideoAnalyzer] Piped API {} returned {}".format(api, resp.status_code))
+                continue
+
+            data = resp.json()
+            audio_streams = data.get("audioStreams", [])
+            if not audio_streams:
+                logger.warning("[VideoAnalyzer] Piped: no audio streams for {}".format(vid))
+                continue
+
+            # Pick best quality audio (highest bitrate)
+            best = max(audio_streams, key=lambda s: s.get("bitrate", 0))
+            audio_url = best.get("url", "")
+            if not audio_url:
+                continue
+
+            logger.info("[VideoAnalyzer] Piped: downloading {} kbps audio from {}".format(
+                best.get("bitrate", 0), api))
+
+            # Download with yt-dlp (handles redirects, resuming, etc.)
+            output_template = str(output_dir / "%(id)s.%(ext)s")
+            result = subprocess.run(
+                [
+                    _yt_dlp_binary(),
+                    audio_url,
+                    "-x",
+                    "--audio-format", "mp3",
+                    "--audio-quality", "128K",
+                    "-o", output_template,
+                    "--no-playlist",
+                    "--no-progress",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=300,
+                check=False,
+            )
+            if result.returncode == 0:
+                mp3_files = list(output_dir.glob("*.mp3"))
+                if mp3_files:
+                    return str(mp3_files[0])
+
+        except Exception as exc:
+            logger.warning("[VideoAnalyzer] Piped {} error: {}".format(api, exc))
+            continue
+
     return None
 
 
@@ -181,11 +244,7 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
         proxy_args = ["--proxy", proxy_url]
         logger.info("[VideoAnalyzer] using proxy: {}".format(proxy_url.split("@")[-1] if "@" in proxy_url else proxy_url))
 
-    # Build Invidious fallback URLs (no cookies/proxy needed)
     vid = _youtube_id(url)
-    invidious_urls = []
-    if vid:
-        invidious_urls = ["{}/watch?v={}".format(inst, vid) for inst in _INVIDIOUS_INSTANCES]
 
     last_error = None
     result = None
@@ -237,36 +296,14 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
 
         logger.warning("[VideoAnalyzer] attempt {} failed, retrying...".format(i + 1))
 
-    # If all direct strategies failed, try Invidious proxies (no cookies needed)
-    for inv_url in invidious_urls:
-        if result.returncode == 0:
-            break
-        logger.info("[VideoAnalyzer] Invidious fallback: {}".format(inv_url))
-        try:
-            result = subprocess.run(
-                [
-                    _yt_dlp_binary(),
-                    inv_url,
-                    "-x",
-                    "--audio-format", "mp3",
-                    "--audio-quality", "128K",
-                    "-o", output_template,
-                    "--no-playlist",
-                    "--no-progress",
-                ] + user_agent + proxy_args,
-                capture_output=True,
-                text=True,
-                timeout=300,
-                check=False,
-            )
-        except (subprocess.TimeoutExpired, OSError):
-            continue
-
-        if result.returncode != 0:
-            stderr = (result.stderr or "").strip()
-            logger.warning("[VideoAnalyzer] Invidious failed: {}".format(stderr[:200]))
-            last_error = "Invidious proxy failed (all {} instances)".format(len(invidious_urls))
-            continue
+    # If all direct strategies failed, try Piped API (no cookies, no IP blocks)
+    piped_path = None
+    if vid and result.returncode != 0:
+        logger.info("[VideoAnalyzer] trying Piped API fallback...")
+        piped_path = _download_via_piped(vid, out_dir)
+        if piped_path:
+            logger.info("[VideoAnalyzer] Piped download success: {}".format(piped_path))
+            return piped_path, None
 
     if result.returncode != 0:
         action = (
@@ -277,7 +314,7 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
             "Upload cookies.txt in sidebar or set YT_DLP_PROXY env var."
         )
         combined = "{} — {}".format(last_error, action)
-        logger.error("[VideoAnalyzer] all attempts (YouTube + Invidious) failed")
+        logger.error("[VideoAnalyzer] all attempts (YouTube + Piped) failed")
         return None, combined
 
     # Find the downloaded MP3
