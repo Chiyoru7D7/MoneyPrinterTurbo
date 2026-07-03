@@ -501,10 +501,33 @@ with st.sidebar:
             st.error(result["error"])
         else:
             kw = result.get("keywords", [])
+            hk = result.get("hooks", [])
             if kw:
-                st.success("{} keywords, {} hooks".format(len(kw), len(result.get("hooks", []))))
-                for k in kw[:5]:
-                    st.code(k, language=None)
+                st.success("{} keywords, {} hooks".format(len(kw), len(hk)))
+
+                # Full result display
+                with st.expander("📋 查看完整结果", expanded=False):
+                    st.markdown("**Subject:** {}".format(result.get("subject", "")))
+                    st.markdown("**Tone:** {}".format(result.get("tone", "")))
+                    st.markdown("**Keywords:**")
+                    for k in kw:
+                        st.code(k, language=None)
+                    st.markdown("**Hooks:**")
+                    for h in hk:
+                        st.text("💬 {}".format(h))
+
+                # Download button
+                import json
+                download_json = json.dumps(result, ensure_ascii=False, indent=2)
+                st.download_button(
+                    label="⬇️ 下载关键词 ({})".format(len(kw)),
+                    data=download_json,
+                    file_name="video_keywords.json",
+                    mime="application/json",
+                    use_container_width=True,
+                    key="btn_download_kw",
+                )
+
                 if st.button("🎬 Generate with keywords", use_container_width=True, type="primary",
                              key="btn_gen_kw"):
                     st.session_state.generate_topic = result.get("subject", "")
