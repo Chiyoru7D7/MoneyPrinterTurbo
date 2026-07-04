@@ -496,37 +496,39 @@ with st.sidebar:
         if result.get("error"):
             st.error(result["error"])
         else:
-            kw = result.get("keywords", [])
-            hk = result.get("hooks", [])
-            if kw:
-                st.success("{} keywords, {} hooks".format(len(kw), len(hk)))
+            prompt_text = result.get("prompt", "")
+            if prompt_text:
+                st.success("Prompt ready ({}) {} chars".format(
+                    "✓" if result.get("reference") else "",
+                    len(prompt_text)))
 
                 # Full result display
-                with st.expander("📋 查看完整结果", expanded=False):
-                    st.markdown("**Subject:** {}".format(result.get("subject", "")))
-                    st.markdown("**Tone:** {}".format(result.get("tone", "")))
-                    st.markdown("**Keywords:**")
-                    for k in kw:
-                        st.code(k, language=None)
-                    st.markdown("**Hooks:**")
-                    for h in hk:
-                        st.text("💬 {}".format(h))
+                with st.expander("📋 查看完整结果", expanded=True):
+                    if result.get("reference"):
+                        st.info("💡 **为何有效:** {}".format(result.get("reference", "")))
+                    st.markdown("### 🎬 创作提示")
+                    st.text_area("Prompt", prompt_text, height=120, key="ta_prompt",
+                                 label_visibility="collapsed")
+                    kw = result.get("keywords", [])
+                    if kw:
+                        st.markdown("##### 素材搜索词")
+                        st.caption(" | ".join(kw))
 
                 # Download button
                 import json
                 download_json = json.dumps(result, ensure_ascii=False, indent=2)
                 st.download_button(
-                    label="⬇️ 下载关键词 ({})".format(len(kw)),
+                    label="⬇️ 下载完整分析 ({})".format(len(kw)),
                     data=download_json,
-                    file_name="video_keywords.json",
+                    file_name="tiktok_analysis.json",
                     mime="application/json",
                     use_container_width=True,
                     key="btn_download_kw",
                 )
 
-                if st.button("🎬 Generate with keywords", use_container_width=True, type="primary",
+                if st.button("🎬 使用此 Prompt 生成", use_container_width=True, type="primary",
                              key="btn_gen_kw"):
-                    st.session_state.generate_topic = result.get("subject", "")
+                    st.session_state.generate_topic = prompt_text
                     st.session_state.research_mode = None
                     st.rerun()
 

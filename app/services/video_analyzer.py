@@ -1,11 +1,11 @@
 """
-Video Analyzer Service — Extract keywords from TikTok videos.
+Video Analyzer Service — Extract creative brief from TikTok videos.
 
 Flow:
   1. Search: ``yt-dlp "tiktoksearchN:topic"`` to find trending videos
   2. Download: ``yt-dlp <url>`` to get the video (or audio-only)
   3. Transcribe: faster-whisper (shared model from app.services.subtitle)
-  4. Extract keywords: LLM call to pull out search terms, topics, hooks
+  4. Extract prompt: LLM generates a creative brief for a similar-but-different video
 """
 
 import json
@@ -273,18 +273,17 @@ def transcribe_audio(audio_path: str) -> str:
     return transcript
 
 
-def extract_keywords(transcript: str, topic_hint: str = "") -> dict:
-    """Extract video-making keywords from a transcript using LLM.
+def extract_prompt(transcript: str, topic_hint: str = "") -> dict:
+    """Extract a video generation prompt from a TikTok transcript using LLM.
 
     Returns a dict with:
-      - subject: a concise video subject line (for video_subject param)
-      - keywords: list of search terms (for material download)
-      - hooks: list of attention-grabbing phrases found in the source
-      - tone: detected tone (professional/urgent/casual/humorous/emotional)
+      - prompt: full creative brief for dashboard generation (Chinese)
+      - reference: what made the original video effective
+      - keywords: search terms for stock footage (English, for Pexels/Pixabay)
     """
     if not transcript or len(transcript) < 50:
-        logger.warning("[VideoAnalyzer] transcript too short for keyword extraction")
-        return _default_keywords(topic_hint)
+        logger.warning("[VideoAnalyzer] transcript too short for prompt extraction")
+        return _default_prompt(topic_hint)
 
     from app.services.llm import _generate_response
 
@@ -292,36 +291,33 @@ def extract_keywords(transcript: str, topic_hint: str = "") -> dict:
     if topic_hint:
         hint_line = "The video is broadly about: {}".format(topic_hint)
 
-    prompt = """You are a content strategist analyzing a TikTok video transcript.
+    llm_prompt = """You reverse-engineer viral TikTok videos into creative briefs.
 
 {}
 TRANSCRIPT:
 {}
 
-Extract the following from this video transcript. Return ONLY valid JSON:
+Analyze this TikTok transcript and produce a creative brief for making a SIMILAR BUT DIFFERENT video. Return ONLY valid JSON:
 
 {{
-  "subject": "A compelling Chinese video subject line (for Douyin/TikTok style, 10-30 chars)",
-  "keywords": ["keyword1", "keyword2", ...],
-  "hooks": ["attention hook 1", "attention hook 2", ...],
-  "tone": "one of: professional/urgent/casual/humorous/emotional"
+  "prompt": "A detailed creative brief in Chinese (80-200 chars). Describe: what topic to cover, what visual style, what opening hook style, what emotional tone, what pacing. Make it specific enough to generate a new original video in the same genre but NOT a copy.",
+  "reference": "What made the original video effective (1-2 sentences in Chinese)",
+  "keywords": ["keyword1", "keyword2", ...]
 }}
 
 Rules:
-- subject: write in Chinese, make it catchy like a short-video title
-- keywords: 5-8 specific search terms that would find stock footage for THIS topic.
-  Include both broad and specific terms. Write in English for Pexels/Pixabay search.
-- hooks: 3-5 attention-grabbing opening lines or phrases found in the video
-- tone: pick the dominant emotional tone
+- prompt: write in Chinese. Be specific — mention visual style, hook style, pacing, tone.
+  This will be pasted directly into a video generator. Make it self-contained and actionable.
+- reference: explain the original's success formula so the creator understands the strategy
+- keywords: 5-8 English search terms for stock footage sites (Pexels/Pixabay)
 
 Output ONLY the JSON object, no markdown, no explanation.""".format(
         hint_line,
-        transcript[:8000],  # Truncate to avoid token limits
+        transcript[:8000],
     )
 
     try:
-        response = _generate_response(prompt)
-        # Strip markdown code fences if present
+        response = _generate_response(llm_prompt)
         response = response.strip()
         if response.startswith("```"):
             response = response.split("\n", 1)[-1]
@@ -330,24 +326,23 @@ Output ONLY the JSON object, no markdown, no explanation.""".format(
             response = response.strip()
 
         result = json.loads(response)
-        logger.info("[VideoAnalyzer] extracted {} keywords, {} hooks".format(
+        logger.info("[VideoAnalyzer] prompt extracted ({} chars), {} keywords".format(
+            len(result.get("prompt", "")),
             len(result.get("keywords", [])),
-            len(result.get("hooks", [])),
         ))
         return result
     except Exception as exc:
-        logger.error("[VideoAnalyzer] keyword extraction failed: {}".format(exc))
-        return _default_keywords(topic_hint)
+        logger.error("[VideoAnalyzer] prompt extraction failed: {}".format(exc))
+        return _default_prompt(topic_hint)
 
 
-def _default_keywords(topic_hint: str = "") -> dict:
+def _default_prompt(topic_hint: str = "") -> dict:
     """Fallback when LLM extraction fails."""
-    subject = topic_hint or "热门视频创作"
+    fallback = topic_hint or "热门视频创作"
     return {
-        "subject": subject,
+        "prompt": "创作一个关于「{}」的短视频，节奏紧凑，开头3秒抓住注意力，使用真实素材和简洁文案，适合抖音平台。".format(fallback),
+        "reference": "",
         "keywords": [topic_hint] if topic_hint else [],
-        "hooks": [],
-        "tone": "professional",
     }
 
 
@@ -360,10 +355,9 @@ def analyze_video(url_or_topic: str, is_topic: bool = False) -> dict:
 
     Returns:
         {
-            "subject": str,
+            "prompt": str,
+            "reference": str,
             "keywords": [str, ...],
-            "hooks": [str, ...],
-            "tone": str,
             "transcript": str,
             "source_url": str,
             "source_title": str,
@@ -378,7 +372,7 @@ def analyze_video(url_or_topic: str, is_topic: bool = False) -> dict:
         videos = search_videos(url_or_topic, count=1)
         if not videos:
             error = "No TikTok videos found for topic: {}".format(url_or_topic)
-            return {"subject": "", "keywords": [], "hooks": [], "tone": "",
+            return {"prompt": "", "reference": "", "keywords": [],
                     "transcript": "", "source_url": "", "source_title": "", "error": error}
         source_url = videos[0]["url"]
         source_title = videos[0]["title"]
@@ -387,7 +381,7 @@ def analyze_video(url_or_topic: str, is_topic: bool = False) -> dict:
     audio_path, dl_error = download_audio(source_url)
     if not audio_path:
         error = "Failed to download TikTok audio: {}".format(dl_error or source_url)
-        return {"subject": "", "keywords": [], "hooks": [], "tone": "",
+        return {"prompt": "", "reference": "", "keywords": [],
                 "transcript": "", "source_url": source_url, "source_title": source_title,
                 "error": error}
 
@@ -396,12 +390,12 @@ def analyze_video(url_or_topic: str, is_topic: bool = False) -> dict:
     if not transcript:
         error = "Failed to transcribe audio"
         _cleanup(audio_path)
-        return {"subject": "", "keywords": [], "hooks": [], "tone": "",
+        return {"prompt": "", "reference": "", "keywords": [],
                 "transcript": "", "source_url": source_url, "source_title": source_title,
                 "error": error}
 
-    # Extract keywords
-    result = extract_keywords(transcript, topic_hint=url_or_topic if is_topic else "")
+    # Extract prompt
+    result = extract_prompt(transcript, topic_hint=url_or_topic if is_topic else "")
     result["transcript"] = transcript
     result["source_url"] = source_url
     result["source_title"] = source_title
