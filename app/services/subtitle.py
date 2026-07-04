@@ -1,5 +1,5 @@
 import json
-import os.path
+import os
 import re
 from timeit import default_timer as timer
 
@@ -12,7 +12,10 @@ from loguru import logger
 from app.config import config
 from app.utils import utils
 
-model_size = config.whisper.get("model_size", "large-v3")
+_low_mem = os.getenv("LOW_MEMORY_MODE", "").lower() in ("1", "true", "yes")
+model_size = os.getenv("WHISPER_MODEL_SIZE", "")
+if not model_size:
+    model_size = "base" if _low_mem else config.whisper.get("model_size", "large-v3")
 device = config.whisper.get("device", "cpu")
 compute_type = config.whisper.get("compute_type", "int8")
 model = None

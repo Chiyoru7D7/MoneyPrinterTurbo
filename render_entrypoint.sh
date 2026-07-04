@@ -5,7 +5,7 @@
 set -e
 
 # Standard plan has enough RAM — use full 1080p
-export LOW_MEMORY_MODE="${LOW_MEMORY_MODE:-0}"
+export LOW_MEMORY_MODE="${LOW_MEMORY_MODE:-1}"
 echo "[render_entrypoint] LOW_MEMORY_MODE=$LOW_MEMORY_MODE"
 
 CONFIG_FILE="/MoneyPrinterTurbo/config.toml"

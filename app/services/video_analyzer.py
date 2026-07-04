@@ -225,7 +225,12 @@ def transcribe_audio(audio_path: str) -> str:
         logger.error("[VideoAnalyzer] faster_whisper not installed")
         return ""
 
-    model_size = config.whisper.get("model_size", "large-v3")
+    # Render starter = 512MB RAM, large-v3 = 3GB → OOM
+    # Use WHISPER_MODEL_SIZE env var override, or fall back to base when low-memory
+    _low_mem = os.getenv("LOW_MEMORY_MODE", "").lower() in ("1", "true", "yes")
+    model_size = os.getenv("WHISPER_MODEL_SIZE", "")
+    if not model_size:
+        model_size = "base" if _low_mem else config.whisper.get("model_size", "large-v3")
     device = config.whisper.get("device", "cpu")
     compute_type = config.whisper.get("compute_type", "int8")
 

@@ -28,6 +28,8 @@ services:
         sync: false
       - key: VOICE_NAME
         sync: false
+      - key: WHISPER_MODEL_SIZE
+        sync: false
 
       # ── Access Control ──
       - key: ACCESS_CODE
