@@ -54,6 +54,12 @@ st.markdown(f"""
     h2 {{ font-size: 1.8rem !important; color: {HEADING} !important; font-weight: 700 !important; }}
     h3 {{ font-size: 1.4rem !important; color: {HEADING} !important; font-weight: 700 !important; }}
     p, li, label, div {{ color: {TEXT_PRIMARY}; }}
+    [data-testid="stSidebar"] p, [data-testid="stSidebar"] li,
+    [data-testid="stSidebar"] label, [data-testid="stSidebar"] div,
+    [data-testid="stSidebar"] span, [data-testid="stSidebar"] .stMarkdown
+    {{ color: #e0e0e0 !important; }}
+    [data-testid="stSidebar"] .stExpander details summary {{ color: #ffffff !important; }}
+    [data-testid="stSidebar"] .stExpander details div {{ color: #000000 !important; }}
     .text-muted {{ color: {TEXT_MUTED}; font-size: 0.95rem; }}
     .text-secondary {{ color: {TEXT_SECONDARY}; font-size: 1rem; }}
 
@@ -452,7 +458,7 @@ with st.sidebar:
 
     research_topic = st.text_input("Search topic or paste TikTok URL",
                                    key="research_input",
-                                   placeholder="e.g. 美妆教程 or TikTok URL...")
+                                   placeholder="e.g. makeup tutorial or TikTok URL...")
     c3, c4 = st.columns(2)
     with c3:
         if st.button("🔍 Search", use_container_width=True, key="btn_search"):
@@ -498,27 +504,25 @@ with st.sidebar:
         else:
             prompt_text = result.get("prompt", "")
             if prompt_text:
-                st.success("Prompt ready ({}) {} chars".format(
-                    "✓" if result.get("reference") else "",
-                    len(prompt_text)))
+                st.success("Prompt ready ({} chars)".format(len(prompt_text)))
 
                 # Full result display
-                with st.expander("📋 查看完整结果", expanded=True):
+                with st.expander("📋 View Full Analysis", expanded=True):
                     if result.get("reference"):
-                        st.info("💡 **为何有效:** {}".format(result.get("reference", "")))
-                    st.markdown("### 🎬 创作提示")
+                        st.info("💡 **Why it works:** {}".format(result.get("reference", "")))
+                    st.markdown("### 🎬 Creative Prompt")
                     st.text_area("Prompt", prompt_text, height=120, key="ta_prompt",
                                  label_visibility="collapsed")
                     kw = result.get("keywords", [])
                     if kw:
-                        st.markdown("##### 素材搜索词")
+                        st.markdown("##### Search Keywords")
                         st.caption(" | ".join(kw))
 
                 # Download button
                 import json
                 download_json = json.dumps(result, ensure_ascii=False, indent=2)
                 st.download_button(
-                    label="⬇️ 下载完整分析 ({})".format(len(kw)),
+                    label="⬇️ Download Analysis ({} keywords)".format(len(kw)),
                     data=download_json,
                     file_name="tiktok_analysis.json",
                     mime="application/json",
@@ -526,7 +530,7 @@ with st.sidebar:
                     key="btn_download_kw",
                 )
 
-                if st.button("🎬 使用此 Prompt 生成", use_container_width=True, type="primary",
+                if st.button("🎬 Generate with this Prompt", use_container_width=True, type="primary",
                              key="btn_gen_kw"):
                     st.session_state.generate_topic = prompt_text
                     st.session_state.research_mode = None
