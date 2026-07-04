@@ -1,9 +1,9 @@
 """
-Video Analyzer Service — Extract keywords from competitor/source videos.
+Video Analyzer Service — Extract keywords from TikTok videos.
 
 Flow:
-  1. Search: ``yt-dlp "ytsearchN:topic"`` to find trending videos on a topic
-  2. Download audio: ``yt-dlp -x --audio-format mp3 <url>``
+  1. Search: ``yt-dlp "tiktoksearchN:topic"`` to find trending videos
+  2. Download: ``yt-dlp <url>`` to get the video (or audio-only)
   3. Transcribe: faster-whisper (shared model from app.services.subtitle)
   4. Extract keywords: LLM call to pull out search terms, topics, hooks
 """
@@ -22,46 +22,24 @@ from app.utils import utils
 
 
 def _yt_dlp_binary() -> str:
-    """Return the yt-dlp executable path (module or standalone)."""
+    """Return the yt-dlp executable path."""
     return "yt-dlp"
 
 
-def _yt_dlp_cookies_args() -> list:
-    """Return --cookies args if YT_DLP_COOKIES_PATH is set, or auto-detect cookies file."""
-    path = os.getenv("YT_DLP_COOKIES_PATH", "")
-    if path and os.path.isfile(path):
-        logger.info("[VideoAnalyzer] using cookies from env: {}".format(path))
-        return ["--cookies", path]
-    if path:
-        logger.warning("[VideoAnalyzer] YT_DLP_COOKIES_PATH set but file not found: {}".format(path))
-
-    # Auto-detect: look for *cookies*.txt in project root + storage dir
-    root = utils.root_dir()
-    storage = os.path.join(root, "storage")
-    for base in (root, storage):
-        for name in ("www.youtube.com_cookies.txt", "cookies.txt", "youtube_cookies.txt"):
-            candidate = os.path.join(base, name)
-            if os.path.isfile(candidate):
-                logger.info("[VideoAnalyzer] auto-detected cookies: {}".format(candidate))
-                return ["--cookies", candidate]
-
-    logger.warning("[VideoAnalyzer] no cookies file found (checked: {}, {})".format(root, storage))
-    return []
-
-
 def search_videos(topic: str, count: int = 5) -> List[dict]:
-    """Search for trending videos on a topic using yt-dlp's YouTube search.
+    """Search TikTok for trending videos on a topic.
 
     Returns a list of dicts with keys: id, title, duration, url, channel, view_count.
     """
     if not topic or not topic.strip():
         return []
 
-    query = "ytsearch{}:{}".format(min(count, 20), topic.strip())
-    logger.info("[VideoAnalyzer] searching: {}".format(query))
+    query = "tiktoksearch{}:{}".format(min(count, 20), topic.strip())
+    logger.info("[VideoAnalyzer] searching TikTok: {}".format(query))
 
     try:
-        cmd = [
+        result = subprocess.run(
+            [
                 _yt_dlp_binary(),
                 query,
                 "--dump-json",
@@ -69,20 +47,18 @@ def search_videos(topic: str, count: int = 5) -> List[dict]:
                 "--flat-playlist",
                 "--skip-download",
                 "--quiet",
-            ] + _yt_dlp_cookies_args()
-        result = subprocess.run(
-            cmd,
+            ],
             capture_output=True,
             text=True,
             timeout=60,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        logger.error("[VideoAnalyzer] yt-dlp search failed: {}".format(exc))
+        logger.error("[VideoAnalyzer] TikTok search failed: {}".format(exc))
         return []
 
     if result.returncode != 0:
-        logger.error("[VideoAnalyzer] yt-dlp search error: {}".format(
+        logger.error("[VideoAnalyzer] TikTok search error: {}".format(
             (result.stderr or "").strip()
         ))
         return []
@@ -95,186 +71,24 @@ def search_videos(topic: str, count: int = 5) -> List[dict]:
             info = json.loads(line)
             videos.append({
                 "id": info.get("id", ""),
-                "title": info.get("title", ""),
+                "title": info.get("title", "")[:80],
                 "duration": info.get("duration", 0),
                 "url": info.get("webpage_url", info.get("url", "")),
-                "channel": info.get("channel", info.get("uploader", "")),
+                "channel": info.get("uploader", info.get("channel", "")),
                 "view_count": info.get("view_count", 0),
             })
         except json.JSONDecodeError:
             continue
 
-    logger.info("[VideoAnalyzer] found {} video(s) for '{}'".format(len(videos), topic))
+    logger.info("[VideoAnalyzer] found {} TikTok(s) for '{}'".format(len(videos), topic))
     return videos
 
 
-def _youtube_id(url: str) -> Optional[str]:
-    """Extract YouTube video ID from URL."""
-    import re
-    patterns = [
-        r"(?:v=|/v/|youtu\.be/|/embed/|/shorts/)([A-Za-z0-9_-]{11})",
-        r"^([A-Za-z0-9_-]{11})$",
-    ]
-    for pat in patterns:
-        m = re.search(pat, url)
-        if m:
-            return m.group(1)
-    return None
-
-
-def _download_via_piped(vid: str, output_dir: Path) -> Optional[str]:
-    """Download YouTube audio via Piped API — no cookies, no IP restrictions.
-
-    Piped is a privacy-friendly YouTube frontend. Its API returns direct
-    audio stream URLs that we download with yt-dlp/requests.
-
-    Returns MP3 path or None.
-    """
-    import requests as req
-
-    piped_apis = [
-        "https://pipedapi.kavin.rocks",
-        "https://pipedapi.tokhmi.xyz",
-        "https://pipedapi.moomoo.me",
-    ]
-
-    for api in piped_apis:
-        try:
-            # Get stream info from Piped
-            resp = req.get(
-                "{}/streams/{}".format(api, vid),
-                timeout=15,
-                headers={"User-Agent": "MPT/3.0"},
-            )
-            if resp.status_code != 200:
-                logger.warning("[VideoAnalyzer] Piped API {} returned {}".format(api, resp.status_code))
-                continue
-
-            data = resp.json()
-            audio_streams = data.get("audioStreams", [])
-            if not audio_streams:
-                logger.warning("[VideoAnalyzer] Piped: no audio streams for {}".format(vid))
-                continue
-
-            # Pick best quality audio (highest bitrate)
-            best = max(audio_streams, key=lambda s: s.get("bitrate", 0))
-            audio_url = best.get("url", "")
-            if not audio_url:
-                continue
-
-            logger.info("[VideoAnalyzer] Piped: downloading {} kbps audio from {}".format(
-                best.get("bitrate", 0), api))
-
-            # Download with yt-dlp (handles redirects, resuming, etc.)
-            output_template = str(output_dir / "%(id)s.%(ext)s")
-            result = subprocess.run(
-                [
-                    _yt_dlp_binary(),
-                    audio_url,
-                    "-x",
-                    "--audio-format", "mp3",
-                    "--audio-quality", "128K",
-                    "-o", output_template,
-                    "--no-playlist",
-                    "--no-progress",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=300,
-                check=False,
-            )
-            if result.returncode == 0:
-                mp3_files = list(output_dir.glob("*.mp3"))
-                if mp3_files:
-                    return str(mp3_files[0])
-
-        except Exception as exc:
-            logger.warning("[VideoAnalyzer] Piped {} error: {}".format(api, exc))
-            continue
-
-    return None
-
-
-def _download_via_cobalt(vid: str, output_dir: Path) -> Optional[str]:
-    """Download YouTube audio via Cobalt API — no cookies, community-maintained.
-
-    Uses public Cobalt instances. Returns MP3 path or None.
-    """
-    import requests as req
-
-    cobalt_instances = [
-        "https://api.cobalt.tools",
-        "https://co.wuk.sh",
-    ]
-
-    for api in cobalt_instances:
-        try:
-            resp = req.post(
-                api + "/",
-                json={
-                    "url": "https://www.youtube.com/watch?v={}".format(vid),
-                    "downloadMode": "audio",
-                    "audioFormat": "mp3",
-                    "audioBitrate": "128",
-                    "filenameStyle": "basic",
-                },
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                },
-                timeout=30,
-            )
-        except Exception as exc:
-            logger.warning("[VideoAnalyzer] Cobalt {} request error: {}".format(api, exc))
-            continue
-
-        if resp.status_code != 200:
-            logger.warning("[VideoAnalyzer] Cobalt {} returned {}".format(api, resp.status_code))
-            continue
-
-        try:
-            data = resp.json()
-        except Exception:
-            continue
-
-        if data.get("status") not in ("tunnel", "redirect"):
-            logger.warning("[VideoAnalyzer] Cobalt {} unexpected status: {}".format(api, data.get("status")))
-            continue
-
-        audio_url = data.get("url", "")
-        if not audio_url:
-            continue
-
-        logger.info("[VideoAnalyzer] Cobalt: downloading from {}...".format(api))
-
-        # Download the audio file directly
-        try:
-            audio_resp = req.get(audio_url, timeout=300, stream=True)
-            if audio_resp.status_code != 200:
-                continue
-
-            output_path = output_dir / "{}.mp3".format(vid)
-            with open(output_path, "wb") as f:
-                for chunk in audio_resp.iter_content(chunk_size=8192):
-                    f.write(chunk)
-
-            if output_path.stat().st_size > 0:
-                return str(output_path)
-        except Exception as exc:
-            logger.warning("[VideoAnalyzer] Cobalt {} download error: {}".format(api, exc))
-            continue
-
-    return None
-
-
 def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[str], Optional[str]]:
-    """Download audio-only from a video URL using yt-dlp.
+    """Download audio from a TikTok video URL.
 
     Returns (path, error). path is the MP3 file path or None; error is a
     human-readable message or None.
-
-    Tries first with the user's config (cookies if set), then falls back to
-    the Android player client which is less strict about bot detection.
     """
     if not url or not url.strip():
         return None, "empty URL"
@@ -288,69 +102,33 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
     output_template = str(out_dir / "%(id)s.%(ext)s")
     logger.info("[VideoAnalyzer] downloading audio from: {}".format(url))
 
-    # Strategy 1-3: try different player clients
-    # All may require cookies — YouTube blocks datacenter IPs aggressively
-    strategies = [
-        ["--extractor-args", "youtube:player_client=web", "--no-playlist", "--no-progress"],
-        ["--extractor-args", "youtube:player_client=android", "--no-playlist", "--no-progress"],
-        ["--extractor-args", "youtube:player_client=ios", "--no-playlist", "--no-progress"],
-    ]
-
-    cookie_args = _yt_dlp_cookies_args()
-    if cookie_args:
-        logger.info("[VideoAnalyzer] using cookies: {}".format(cookie_args))
-    else:
-        logger.warning("[VideoAnalyzer] no cookies set — YouTube will likely block")
-
-    # Common browser user-agent matching the cookies export
-    user_agent = [
-        "--user-agent",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    ]
-
-    # Optional proxy (for Render/cloud — bypass YouTube IP blocks)
-    proxy_args = []
-    proxy_url = os.getenv("YT_DLP_PROXY", "")
-    if proxy_url:
-        proxy_args = ["--proxy", proxy_url]
-        logger.info("[VideoAnalyzer] using proxy: {}".format(proxy_url.split("@")[-1] if "@" in proxy_url else proxy_url))
-
-    vid = _youtube_id(url)
-
-    last_error = None
-    result = None
-    for i, extra_args in enumerate(strategies):
-        try:
-            cmd = [
+    try:
+        result = subprocess.run(
+            [
                 _yt_dlp_binary(),
                 url,
                 "-x",
                 "--audio-format", "mp3",
                 "--audio-quality", "128K",
                 "-o", output_template,
-            ] + extra_args + cookie_args + user_agent + proxy_args
-            logger.info("[VideoAnalyzer] attempt {}: {}".format(i + 1, extra_args[1]))
+                "--no-playlist",
+                "--no-progress",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        msg = "yt-dlp timed out after 300s downloading: {}".format(url)
+        logger.error("[VideoAnalyzer] {}".format(msg))
+        return None, msg
+    except OSError as exc:
+        msg = "yt-dlp not found or failed to start: {}".format(exc)
+        logger.error("[VideoAnalyzer] {}".format(msg))
+        return None, msg
 
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            msg = "yt-dlp timed out after 300s downloading: {}".format(url)
-            logger.error("[VideoAnalyzer] {}".format(msg))
-            return None, msg
-        except OSError as exc:
-            msg = "yt-dlp not found or failed to start: {}".format(exc)
-            logger.error("[VideoAnalyzer] {}".format(msg))
-            return None, msg
-
-        if result.returncode == 0:
-            break  # success
-
+    if result.returncode != 0:
         stderr = (result.stderr or "").strip()
         error_lines = [l for l in stderr.split("\n") if l.strip()]
         short_err = ""
@@ -360,41 +138,9 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
                 break
         if not short_err and error_lines:
             short_err = error_lines[-1]
-        last_error = short_err or "yt-dlp exit code {}".format(result.returncode)
-
-        if "Sign in" not in stderr and "bot" not in stderr.lower():
-            logger.error("[VideoAnalyzer] yt-dlp error: {}".format(last_error))
-            return None, last_error
-
-        logger.warning("[VideoAnalyzer] attempt {} failed, retrying...".format(i + 1))
-
-    # If all direct strategies failed, try Piped API (no cookies, no IP blocks)
-    if vid and result.returncode != 0:
-        logger.info("[VideoAnalyzer] trying Piped API fallback...")
-        piped_path = _download_via_piped(vid, out_dir)
-        if piped_path:
-            logger.info("[VideoAnalyzer] Piped download success: {}".format(piped_path))
-            return piped_path, None
-
-    # Try Cobalt API as last resort (no cookies, no IP blocks)
-    if vid and result.returncode != 0:
-        logger.info("[VideoAnalyzer] trying Cobalt API fallback...")
-        cobalt_path = _download_via_cobalt(vid, out_dir)
-        if cobalt_path:
-            logger.info("[VideoAnalyzer] Cobalt download success: {}".format(cobalt_path))
-            return cobalt_path, None
-
-    if result.returncode != 0:
-        action = (
-            "YouTube blocked this server IP. Upload cookies via sidebar "
-            "or set YT_DLP_PROXY to a SOCKS5 proxy."
-        ) if cookie_args else (
-            "YouTube blocked this server IP + no cookies uploaded. "
-            "Upload cookies.txt in sidebar or set YT_DLP_PROXY env var."
-        )
-        combined = "{} — {}".format(last_error, action)
-        logger.error("[VideoAnalyzer] all attempts (YouTube + Piped) failed")
-        return None, combined
+        msg = short_err or "yt-dlp exit code {}".format(result.returncode)
+        logger.error("[VideoAnalyzer] TikTok download error: {}".format(msg))
+        return None, msg
 
     # Find the downloaded MP3
     mp3_files = list(out_dir.glob("*.mp3"))
@@ -406,6 +152,62 @@ def download_audio(url: str, output_dir: str | None = None) -> Tuple[Optional[st
     audio_path = str(mp3_files[0])
     logger.info("[VideoAnalyzer] audio saved: {}".format(audio_path))
     return audio_path, None
+
+
+def download_video(url: str, output_dir: str | None = None) -> Tuple[Optional[str], Optional[str]]:
+    """Download full TikTok video (with audio).
+
+    Returns (path, error). path is the MP4 file path or None.
+    """
+    if not url or not url.strip():
+        return None, "empty URL"
+
+    if output_dir:
+        out_dir = Path(output_dir)
+    else:
+        out_dir = Path(tempfile.mkdtemp(prefix="mpt_video_"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    output_template = str(out_dir / "%(id)s.%(ext)s")
+    logger.info("[VideoAnalyzer] downloading video from: {}".format(url))
+
+    try:
+        result = subprocess.run(
+            [
+                _yt_dlp_binary(),
+                url,
+                "-f", "best[ext=mp4]",
+                "-o", output_template,
+                "--no-playlist",
+                "--no-progress",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=600,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        msg = "yt-dlp timed out downloading: {}".format(url)
+        logger.error("[VideoAnalyzer] {}".format(msg))
+        return None, msg
+    except OSError as exc:
+        msg = "yt-dlp not found: {}".format(exc)
+        logger.error("[VideoAnalyzer] {}".format(msg))
+        return None, msg
+
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        msg = "TikTok download error: {}".format(stderr[:300] if stderr else "unknown")
+        logger.error("[VideoAnalyzer] {}".format(msg))
+        return None, msg
+
+    mp4_files = list(out_dir.glob("*.mp4"))
+    if not mp4_files:
+        return None, "no MP4 found after download"
+
+    video_path = str(mp4_files[0])
+    logger.info("[VideoAnalyzer] video saved: {}".format(video_path))
+    return video_path, None
 
 
 def transcribe_audio(audio_path: str) -> str:
@@ -485,7 +287,7 @@ def extract_keywords(transcript: str, topic_hint: str = "") -> dict:
     if topic_hint:
         hint_line = "The video is broadly about: {}".format(topic_hint)
 
-    prompt = """You are a content strategist analyzing a competitor's video transcript.
+    prompt = """You are a content strategist analyzing a TikTok video transcript.
 
 {}
 TRANSCRIPT:
@@ -545,10 +347,10 @@ def _default_keywords(topic_hint: str = "") -> dict:
 
 
 def analyze_video(url_or_topic: str, is_topic: bool = False) -> dict:
-    """Full analysis pipeline: search (if topic) → download → transcribe → extract.
+    """Full analysis pipeline: search (if topic) -> download -> transcribe -> extract.
 
     Args:
-        url_or_topic: A video URL, or a topic string if is_topic=True.
+        url_or_topic: A TikTok video URL, or a topic string if is_topic=True.
         is_topic: If True, search for the top video on this topic first.
 
     Returns:
@@ -570,7 +372,7 @@ def analyze_video(url_or_topic: str, is_topic: bool = False) -> dict:
     if is_topic:
         videos = search_videos(url_or_topic, count=1)
         if not videos:
-            error = "No videos found for topic: {}".format(url_or_topic)
+            error = "No TikTok videos found for topic: {}".format(url_or_topic)
             return {"subject": "", "keywords": [], "hooks": [], "tone": "",
                     "transcript": "", "source_url": "", "source_title": "", "error": error}
         source_url = videos[0]["url"]
@@ -579,7 +381,7 @@ def analyze_video(url_or_topic: str, is_topic: bool = False) -> dict:
     # Download audio
     audio_path, dl_error = download_audio(source_url)
     if not audio_path:
-        error = "Failed to download audio: {}".format(dl_error or source_url)
+        error = "Failed to download TikTok audio: {}".format(dl_error or source_url)
         return {"subject": "", "keywords": [], "hooks": [], "tone": "",
                 "transcript": "", "source_url": source_url, "source_title": source_title,
                 "error": error}

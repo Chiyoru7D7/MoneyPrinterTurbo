@@ -447,12 +447,12 @@ with st.sidebar:
     st.divider()
 
     # ── Video Research ─────────────────────────────────────────
-    st.markdown('<p style="font-size:0.85rem;opacity:0.7;margin:0;">🔍 Video Research</p>',
+    st.markdown('<p style="font-size:0.85rem;opacity:0.7;margin:0;">🔍 TikTok Research</p>',
                 unsafe_allow_html=True)
 
-    research_topic = st.text_input("Search topic or paste URL",
+    research_topic = st.text_input("Search topic or paste TikTok URL",
                                    key="research_input",
-                                   placeholder="e.g. 美妆教程 or YouTube URL...")
+                                   placeholder="e.g. 美妆教程 or TikTok URL...")
     c3, c4 = st.columns(2)
     with c3:
         if st.button("🔍 Search", use_container_width=True, key="btn_search"):
@@ -464,18 +464,14 @@ with st.sidebar:
                 st.rerun()
     with c4:
         if st.button("📥 Analyze URL", use_container_width=True, key="btn_analyze"):
-            if research_topic.strip() and ("youtube.com" in research_topic or "youtu.be" in research_topic or "tiktok.com" in research_topic):
+            if research_topic.strip() and "tiktok.com" in research_topic:
                 with st.spinner("Downloading + transcribing + extracting..."):
                     from app.services.video_analyzer import analyze_video
                     st.session_state.research_result = analyze_video(research_topic.strip())
                     st.session_state.research_mode = "analyze"
                 st.rerun()
             elif research_topic.strip() and research_topic.startswith("http"):
-                with st.spinner("Analyzing video URL..."):
-                    from app.services.video_analyzer import analyze_video
-                    st.session_state.research_result = analyze_video(research_topic.strip())
-                    st.session_state.research_mode = "analyze"
-                st.rerun()
+                st.warning("Only TikTok URLs are supported. Paste a tiktok.com link.")
 
     # Show search results
     if st.session_state.get("research_mode") == "search" and st.session_state.get("research_results"):
@@ -533,25 +529,6 @@ with st.sidebar:
                     st.session_state.generate_topic = result.get("subject", "")
                     st.session_state.research_mode = None
                     st.rerun()
-
-    st.divider()
-
-    # ── YouTube Cookies Upload ──
-    st.markdown('<p style="font-size:0.85rem;opacity:0.7;margin:0;">🍪 YouTube Cookies</p>',
-                unsafe_allow_html=True)
-    cookies_file = st.file_uploader("Upload cookies.txt",
-                                     type=["txt"],
-                                     key="cookies_uploader",
-                                     label_visibility="collapsed")
-    if cookies_file is not None:
-        import shutil
-        storage = Path("storage") if cfg.get("material_directory") else Path("storage")
-        storage.mkdir(parents=True, exist_ok=True)
-        dest = storage / "cookies.txt"
-        with open(dest, "wb") as f:
-            f.write(cookies_file.getbuffer())
-        st.success("cookies saved ✓")
-        st.caption("Path: {}".format(str(dest.resolve())))
 
     st.divider()
 
