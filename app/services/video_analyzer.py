@@ -276,10 +276,30 @@ def transcribe_audio(audio_path: str) -> str:
 def extract_prompt(transcript: str, topic_hint: str = "") -> dict:
     """Extract a video generation prompt from a TikTok transcript using LLM.
 
-    Returns a dict with:
-      - prompt: full creative brief for dashboard generation (Chinese)
-      - reference: what made the original video effective
-      - keywords: search terms for stock footage (English, for Pexels/Pixabay)
+    Returns a dict mapped to the MoneyPrinterTurbo pipeline stages:
+
+        prompt
+            Concise topic + style (80-200 chars, English).
+            Used as ``video_subject`` → feeds the script generator LLM.
+
+        script_prompt
+            Detailed creative direction (200-1000 chars, English).
+            Used as ``video_script_prompt`` — controls narrative structure,
+            hook approach, pacing, tone, and speaker persona.
+
+        reference
+            Why the original video was effective (1-2 sentences, English).
+
+        keywords
+            5-8 English search terms for Pexels / Pixabay / Coverr stock
+            footage.  Each term 1-3 words, ordered by visual importance.
+
+        visual_style
+            One of: cinematic | documentary | bold_text | animation |
+            product_demo | talking_head | text_overlay | lifestyle
+
+        bgm_mood
+            One of: energetic | calm | dramatic | upbeat | lofi | none
     """
     if not transcript or len(transcript) < 50:
         logger.warning("[VideoAnalyzer] transcript too short for prompt extraction")
@@ -291,25 +311,36 @@ def extract_prompt(transcript: str, topic_hint: str = "") -> dict:
     if topic_hint:
         hint_line = "The video is broadly about: {}".format(topic_hint)
 
-    llm_prompt = """You reverse-engineer viral TikTok videos into creative briefs.
+    llm_prompt = """You reverse-engineer viral TikTok videos into structured creative briefs for an automated video generator.
+
+The generator pipeline works like this:
+  1. Script LLM writes narration from a topic + style hint
+  2. Stock footage (Pexels/Pixabay/Coverr) is searched by English keywords
+  3. TTS voiceover + burned-in subtitles on the video
+  4. Clips are concatenated (random or sequential) with optional transitions + background music
 
 {}
 TRANSCRIPT:
 {}
 
-Analyze this TikTok transcript and produce a creative brief for making a SIMILAR BUT DIFFERENT video. Return ONLY valid JSON:
+Analyze this TikTok transcript. Figure out what made it work, then design a SIMILAR BUT DIFFERENT video spec. Return ONLY valid JSON:
 
 {{
-  "prompt": "A detailed creative brief in Chinese (80-200 chars). Describe: what topic to cover, what visual style, what opening hook style, what emotional tone, what pacing. Make it specific enough to generate a new original video in the same genre but NOT a copy.",
-  "reference": "What made the original video effective (1-2 sentences in Chinese)",
-  "keywords": ["keyword1", "keyword2", ...]
+  "prompt": "Concise topic + style description (80-200 chars, English). This is the video_subject for the script generator. Encode: what the video is about, the visual vibe, the hook style, and the emotional tone. Make it specific and self-contained.",
+  "script_prompt": "Detailed creative direction (200-1000 chars, English). This is the video_script_prompt. Describe: narrative structure (hook → body → CTA), pacing, speaker persona, what beats to hit, how to open, how to close. Also mention what visual footage should accompany each narrative beat so search keywords can match.",
+  "reference": "What made the original video effective (1-2 sentences, English)",
+  "keywords": ["keyword1", "keyword2", ...],
+  "visual_style": "cinematic|documentary|bold_text|animation|product_demo|talking_head|text_overlay|lifestyle",
+  "bgm_mood": "energetic|calm|dramatic|upbeat|lofi|none"
 }}
 
 Rules:
-- prompt: write in Chinese. Be specific — mention visual style, hook style, pacing, tone.
-  This will be pasted directly into a video generator. Make it self-contained and actionable.
-- reference: explain the original's success formula so the creator understands the strategy
-- keywords: 5-8 English search terms for stock footage sites (Pexels/Pixabay)
+- prompt: 80-200 chars. Write in English. Encode topic + hook style + visual vibe. Example: "A dramatic reveal of eco-friendly sneakers made from ocean plastic — fast cuts, bold text overlays, urgent tone targeting Gen Z sustainability shoppers"
+- script_prompt: 200-1000 chars. Write in English. Be a director's brief — specify the narrative arc, pacing, speaker energy level, what makes the hook work, how to structure the body, what CTA to end with.
+- reference: 1-2 sentences analyzing the original's viral mechanics
+- keywords: 5-8 English terms (1-3 words each) for stock footage searches on Pexels/Pixabay. Order by visual importance — earlier terms match opening scenes. Use concrete visual nouns: "ocean plastic pollution" not "sustainability".
+- visual_style: pick the closest match from the list above based on the original's editing style
+- bgm_mood: pick the closest match based on the original's audio energy
 
 Output ONLY the JSON object, no markdown, no explanation.""".format(
         hint_line,
@@ -330,6 +361,11 @@ Output ONLY the JSON object, no markdown, no explanation.""".format(
             len(result.get("prompt", "")),
             len(result.get("keywords", [])),
         ))
+        # Ensure backward-compatible minimum fields
+        result.setdefault("reference", "")
+        result.setdefault("script_prompt", "")
+        result.setdefault("visual_style", "cinematic")
+        result.setdefault("bgm_mood", "energetic")
         return result
     except Exception as exc:
         logger.error("[VideoAnalyzer] prompt extraction failed: {}".format(exc))
@@ -338,11 +374,14 @@ Output ONLY the JSON object, no markdown, no explanation.""".format(
 
 def _default_prompt(topic_hint: str = "") -> dict:
     """Fallback when LLM extraction fails."""
-    fallback = topic_hint or "热门视频创作"
+    fallback = topic_hint or "trending video"
     return {
-        "prompt": "创作一个关于「{}」的短视频，节奏紧凑，开头3秒抓住注意力，使用真实素材和简洁文案，适合抖音平台。".format(fallback),
+        "prompt": "Create a short video about \"{}\" with tight pacing, a hook in the first 3 seconds, real footage, and concise text overlays — optimized for TikTok-style short-form video platforms.".format(fallback),
+        "script_prompt": "Hook the viewer in the first 3 seconds with a bold statement or question about {}. Keep pacing fast — short sentences, high energy. Use a problem → solution narrative arc. End with a clear call to action.".format(fallback),
         "reference": "",
         "keywords": [topic_hint] if topic_hint else [],
+        "visual_style": "cinematic",
+        "bgm_mood": "energetic",
     }
 
 

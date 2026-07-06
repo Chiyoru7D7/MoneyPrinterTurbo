@@ -306,7 +306,7 @@ def get_video_size_mb(path):
     except: return 0
 
 
-def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)", video_source="pexels", ai_provider="comfyui"):
+def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)", video_source="pexels", ai_provider="comfyui", research_script_prompt=""):
     try:
         from app.models.schema import VideoParams
         from app.services import task as task_service
@@ -316,7 +316,15 @@ def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)", vi
             "Medium (~30s)": (2, "Write EXACTLY 4-5 sentences. Total word count MUST be 60-90 words. Keep it engaging."),
             "Long (~60s)":   (3, "Write 6-8 sentences across 2-3 paragraphs. Total word count MUST be 130-170 words."),
         }
-        paragraphs, script_prompt = length_config.get(length_key, length_config["Short (~15s)"])
+        paragraphs, length_script_prompt = length_config.get(length_key, length_config["Short (~15s)"])
+
+        # Merge research creative direction with length-constraint prompt
+        if research_script_prompt.strip():
+            script_prompt = "{}\n\nAdditional creative direction:\n{}".format(
+                length_script_prompt, research_script_prompt.strip()
+            )
+        else:
+            script_prompt = length_script_prompt
 
         # Use English font for English voices, Chinese font for Chinese
         if voice.startswith("en-"):
@@ -510,9 +518,31 @@ with st.sidebar:
                 with st.expander("📋 View Full Analysis", expanded=True):
                     if result.get("reference"):
                         st.info("💡 **Why it works:** {}".format(result.get("reference", "")))
+
                     st.markdown("### 🎬 Creative Prompt")
-                    st.text_area("Prompt", prompt_text, height=120, key="ta_prompt",
+                    st.caption("Used as video_subject — feeds the script generator")
+                    st.text_area("Prompt", prompt_text, height=80, key="ta_prompt",
                                  label_visibility="collapsed")
+
+                    script_prompt = result.get("script_prompt", "")
+                    if script_prompt:
+                        st.markdown("### 📝 Script Direction")
+                        st.caption("Used as video_script_prompt — controls narrative & pacing")
+                        st.text_area("Script Direction", script_prompt, height=120,
+                                     key="ta_script_prompt", label_visibility="collapsed")
+
+                    c_vis, c_bgm = st.columns(2)
+                    with c_vis:
+                        vs = result.get("visual_style", "")
+                        if vs:
+                            st.markdown("### 🎥 Visual Style")
+                            st.caption(vs.replace("_", " ").title())
+                    with c_bgm:
+                        bm = result.get("bgm_mood", "")
+                        if bm:
+                            st.markdown("### 🎵 BGM Mood")
+                            st.caption(bm.title())
+
                     kw = result.get("keywords", [])
                     if kw:
                         st.markdown("##### Search Keywords")
@@ -533,6 +563,7 @@ with st.sidebar:
                 if st.button("🎬 Generate with this Prompt", use_container_width=True, type="primary",
                              key="btn_gen_kw"):
                     st.session_state.generate_topic = prompt_text
+                    st.session_state.generate_script_prompt = script_prompt
                     st.session_state.research_mode = None
                     st.rerun()
 
@@ -610,6 +641,7 @@ if st.session_state.nav_page == "🎬 Dashboard":
         )
         if _prefill:
             st.session_state.generate_topic = ""  # clear after use
+            st.session_state.generate_script_prompt = ""  # clear after use
         c1, c2, c3 = st.columns([1, 1, 1])
         with c1:
             voice = st.radio(
@@ -652,7 +684,8 @@ if st.session_state.nav_page == "🎬 Dashboard":
             task_dir = STORAGE / task_id
 
             st.session_state.running_tasks[task_id] = {"status": "running", "error": None}
-            t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice, length, video_source, ai_provider), daemon=True)
+            research_sp = st.session_state.get("generate_script_prompt", "")
+            t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice, length, video_source, ai_provider, research_sp), daemon=True)
             t.start()
             load_tasks.clear()
             st.success(f"Task `{task_id[:8]}` started!")
