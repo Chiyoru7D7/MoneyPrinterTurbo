@@ -255,6 +255,8 @@ if ACCESS_CODE and not st.session_state.authenticated:
         if st.form_submit_button("🔓 Unlock", use_container_width=True, type="primary"):
             if key.strip() == ACCESS_CODE:
                 st.session_state.authenticated = True
+                # Persist key in URL — survives refresh / new session
+                st.query_params["key"] = ACCESS_CODE
                 st.rerun()
             else:
                 st.error("Invalid access key. Try again.")
