@@ -283,6 +283,16 @@ def load_tasks():
             except Exception:
                 pass
 
+        # Read alignment data if exists
+        alignment = {}
+        alignment_file = task_dir / "alignment.json"
+        if alignment_file.exists():
+            import json
+            try:
+                alignment = json.loads(alignment_file.read_text())
+            except Exception:
+                pass
+
         tasks.append({
             "id_short": task_dir.name[:8],
             "full_id": task_dir.name,
@@ -293,6 +303,7 @@ def load_tasks():
             "modified": datetime.fromtimestamp(task_dir.stat().st_mtime, tz=ZoneInfo("America/New_York")),
             "success": len(final_videos) > 0,
             "timing": timing,
+            "alignment": alignment,
         })
     return tasks
 
@@ -308,7 +319,7 @@ def get_video_size_mb(path):
     except: return 0
 
 
-def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)", video_source="pexels", ai_provider="comfyui", research_script_prompt=""):
+def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)", video_source="pexels", ai_provider="comfyui", research_script_prompt="", research_brief=None):
     try:
         from app.models.schema import VideoParams
         from app.services import task as task_service
@@ -377,6 +388,29 @@ def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)", vi
             }))
         except Exception:
             pass
+
+        # ── Post-generation alignment check (TikTok research → generated video) ──
+        if research_brief and research_brief.get("prompt"):
+            try:
+                from app.services.video_analyzer import score_alignment
+                script_file = STORAGE / task_id / "script.json"
+                gen_script = ""
+                gen_terms = []
+                if script_file.exists():
+                    script_data = _json.loads(script_file.read_text(encoding="utf-8"))
+                    gen_script = script_data.get("script", "")
+                    gen_terms = script_data.get("search_terms", [])
+
+                alignment = score_alignment(
+                    research_brief=research_brief,
+                    generated_script=gen_script,
+                    generated_terms=gen_terms,
+                    video_duration=round(_elapsed, 1),
+                )
+                alignment_path = STORAGE / task_id / "alignment.json"
+                alignment_path.write_text(_json.dumps(alignment, ensure_ascii=False, indent=2))
+            except Exception:
+                pass  # Non-blocking — alignment is best-effort
 
         with _THREAD_LOCK:
             _THREAD_STORE[task_id] = {"status": "done", "error": None, "elapsed": round(_elapsed, 1)}
@@ -687,7 +721,8 @@ if st.session_state.nav_page == "🎬 Dashboard":
 
             st.session_state.running_tasks[task_id] = {"status": "running", "error": None}
             research_sp = st.session_state.get("generate_script_prompt", "")
-            t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice, length, video_source, ai_provider, research_sp), daemon=True)
+            research_bf = st.session_state.get("research_result") if st.session_state.get("research_mode") == "analyze" else None
+            t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice, length, video_source, ai_provider, research_sp, research_bf), daemon=True)
             t.start()
             load_tasks.clear()
             st.success(f"Task `{task_id[:8]}` started!")
@@ -767,7 +802,15 @@ if st.session_state.nav_page == "🎬 Dashboard":
             mb = sum(get_video_size_mb(v) for v in task["final_videos"])
             size_info = f" · {mb:.1f} MB · {task['video_count']} video(s)"
 
-        drawer_title = f"{status_icon}  `{task['id_short']}`  —  {status_label}  ·  {modified_str}{size_info}{timing_str}"
+        # Alignment score badge
+        align_str = ""
+        alignment = task.get("alignment", {})
+        if alignment.get("overall"):
+            score = alignment["overall"]
+            emoji = "🟢" if score >= 80 else ("🟡" if score >= 60 else "🔴")
+            align_str = f" · {emoji} Match: {score}%"
+
+        drawer_title = f"{status_icon}  `{task['id_short']}`  —  {status_label}  ·  {modified_str}{size_info}{timing_str}{align_str}"
 
         with st.expander(drawer_title, expanded=(task == tasks[0] if tasks else False)):
             if task["final_videos"]:
@@ -777,6 +820,28 @@ if st.session_state.nav_page == "🎬 Dashboard":
                         break
             else:
                 st.caption("No output video found for this task.")
+
+            # Show alignment report if present
+            if alignment:
+                st.divider()
+                st.markdown("#### 🎯 Creative Brief Alignment")
+                c_al1, c_al2, c_al3 = st.columns(3)
+                with c_al1:
+                    st.metric("Overall Match", f"{alignment.get('overall', '?')}%")
+                with c_al2:
+                    st.metric("Topic", f"{alignment.get('topic_match', '?')}%")
+                with c_al3:
+                    st.metric("Tone", f"{alignment.get('tone_match', '?')}%")
+                c_al4, c_al5 = st.columns(2)
+                with c_al4:
+                    st.metric("Structure", f"{alignment.get('structure_match', '?')}%")
+                with c_al5:
+                    st.metric("Visual Terms", f"{alignment.get('visual_match', '?')}%")
+                if alignment.get("summary"):
+                    st.info(alignment["summary"])
+                gaps = alignment.get("gaps", [])
+                if gaps:
+                    st.warning("⚠️ Gaps: " + " · ".join(gaps))
 
             # Delete button
             cdel1, cdel2 = st.columns([3, 1])

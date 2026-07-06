@@ -444,6 +444,133 @@ def analyze_video(url_or_topic: str, is_topic: bool = False) -> dict:
     return result
 
 
+def score_alignment(research_brief: dict, generated_script: str,
+                    generated_terms: list, video_duration: float = 0) -> dict:
+    """Score how well a generated video matches the TikTok research brief.
+
+    Uses the LLM as a judge to compare the creative intent (from
+    :func:`extract_prompt`) against the actual pipeline output.
+
+    Args:
+        research_brief: Dict returned by :func:`extract_prompt` with keys
+            ``prompt``, ``script_prompt``, ``keywords``, ``visual_style``,
+            ``bgm_mood``, ``reference``.
+        generated_script: The narration script produced by the pipeline.
+        generated_terms: The search terms used for stock footage.
+        video_duration: Actual video duration in seconds (0 = unknown).
+
+    Returns:
+        A dict with alignment scores and a summary:
+        ::
+            {
+                "overall": 0-100,
+                "topic_match": 0-100,
+                "tone_match": 0-100,
+                "structure_match": 0-100,
+                "visual_match": 0-100,
+                "summary": "2-3 sentence verdict",
+                "gaps": ["what's missing", "..."],
+            }
+    """
+    if not generated_script or len(generated_script) < 20:
+        logger.warning("[VideoAnalyzer] script too short for alignment scoring")
+        return _empty_alignment()
+
+    from app.services.llm import _generate_response
+
+    brief_prompt = research_brief.get("prompt", "")
+    brief_script_dir = research_brief.get("script_prompt", "")
+    brief_keywords = research_brief.get("keywords", [])
+    brief_visual = research_brief.get("visual_style", "")
+    brief_bgm = research_brief.get("bgm_mood", "")
+
+    llm_prompt = """You score how well a generated video script matches a creative brief.
+
+CREATIVE BRIEF:
+Topic/Style: {brief_prompt}
+Director's Notes: {brief_script_dir}
+Intended Keywords: {brief_keywords}
+Visual Style: {brief_visual}
+BGM Mood: {brief_bgm}
+
+GENERATED SCRIPT:
+{generated_script}
+
+SEARCH TERMS USED:
+{generated_terms}
+
+VIDEO DURATION: {video_duration}s
+
+Score alignment on 5 dimensions (0-100 each). Return ONLY valid JSON:
+
+{{
+  "topic_match": 85,
+  "tone_match": 70,
+  "structure_match": 80,
+  "visual_match": 65,
+  "overall": 75,
+  "summary": "The script captures the core topic but the tone is more casual than the brief intended. Visual keyword coverage is partial — missing the opening hook imagery.",
+  "gaps": ["tone is casual instead of urgent", "no keywords matching the opening hook scene"]
+}}
+
+Scoring guide:
+- topic_match: Does the script address the same subject/theme as the brief? (0-100)
+- tone_match: Does the script's energy/persona/emotion match the brief? (0-100)
+- structure_match: Does the narrative arc (hook→body→CTA) match the director's notes? (0-100)
+- visual_match: Do the search terms cover the visual needs described in the brief? (0-100)
+- overall: Weighted average. 90+ = excellent match. 70-89 = good match. 50-69 = partial match. <50 = mismatch.
+- summary: 2-3 sentences. What worked, what didn't. Actionable.
+- gaps: Concrete things missing from the generated output vs the brief.
+
+Output ONLY the JSON object, no markdown, no explanation.""".format(
+        brief_prompt=brief_prompt,
+        brief_script_dir=brief_script_dir[:1500],
+        brief_keywords=", ".join(brief_keywords) if brief_keywords else "(none)",
+        brief_visual=brief_visual or "unspecified",
+        brief_bgm=brief_bgm or "unspecified",
+        generated_script=generated_script[:4000],
+        generated_terms=", ".join(generated_terms) if generated_terms else "(none)",
+        video_duration="{:.1f}".format(video_duration) if video_duration else "unknown",
+    )
+
+    try:
+        response = _generate_response(llm_prompt)
+        response = response.strip()
+        if response.startswith("```"):
+            response = response.split("\n", 1)[-1]
+            if response.endswith("```"):
+                response = response[:-3]
+            response = response.strip()
+
+        result = json.loads(response)
+        # Clamp scores
+        for key in ("overall", "topic_match", "tone_match", "structure_match", "visual_match"):
+            if key in result:
+                result[key] = max(0, min(100, int(result[key])))
+        result.setdefault("summary", "")
+        result.setdefault("gaps", [])
+        logger.info("[VideoAnalyzer] alignment overall={}, gaps={}".format(
+            result.get("overall", "?"),
+            len(result.get("gaps", [])),
+        ))
+        return result
+    except Exception as exc:
+        logger.error("[VideoAnalyzer] alignment scoring failed: {}".format(exc))
+        return _empty_alignment()
+
+
+def _empty_alignment() -> dict:
+    return {
+        "overall": 0,
+        "topic_match": 0,
+        "tone_match": 0,
+        "structure_match": 0,
+        "visual_match": 0,
+        "summary": "",
+        "gaps": [],
+    }
+
+
 def _cleanup(audio_path: str):
     """Remove temporary audio file and its directory."""
     try:
