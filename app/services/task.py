@@ -9,7 +9,7 @@ from loguru import logger
 from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
-from app.services import image_gen, llm, material, subtitle, video, voice, upload_post
+from app.services import campaign, image_gen, llm, material, subtitle, thumbnail, video, voice, upload_post
 from app.services import state as sm
 from app.utils import file_security, utils
 
@@ -76,6 +76,10 @@ def save_script_data(task_id, video_script, video_terms, params, scene_prompts=N
     }
     if scene_prompts:
         script_data["scene_prompts"] = scene_prompts
+    if getattr(params, "seo_keywords", None):
+        script_data["seo_keywords"] = params.seo_keywords
+    if getattr(params, "campaign_template", None):
+        script_data["campaign_template"] = params.campaign_template
 
     with open(script_file, "w", encoding="utf-8") as f:
         f.write(utils.to_json(script_data))
@@ -362,6 +366,24 @@ def generate_final_videos(
 
 def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
+
+    # 0. Load campaign template (if selected) — applies template defaults
+    if getattr(params, "campaign_template", None):
+        tmpl = campaign.load_campaign_template(params.campaign_template)
+        if tmpl:
+            params = campaign.merge_template_params(tmpl, params)
+            # Generate SEO keywords from template seed + subject
+            if tmpl.get("keywords", {}).get("seed") and not getattr(params, "seo_keywords", None):
+                seo_kw = campaign.generate_seo_keywords(
+                    template_id=params.campaign_template,
+                    video_subject=params.video_subject,
+                    count=10,
+                )
+                params.seo_keywords = seo_kw
+            logger.info(f"[Campaign] template '{tmpl.get('name', '?')}' applied")
+        else:
+            logger.warning(f"[Campaign] template '{params.campaign_template}' not found, continuing with defaults")
+
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
     scene_prompts = None  # Only populated for ai_image mode
@@ -515,7 +537,19 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         f"task {task_id} finished, generated {len(final_video_paths)} videos."
     )
 
-    # 7. Cross-post to social platforms (if enabled)
+    # 7. Generate thumbnail
+    thumbnail_path = None
+    try:
+        thumbnail_path = thumbnail.generate_thumbnail(
+            task_id=task_id,
+            video_subject=params.video_subject,
+            video_script=video_script,
+            video_path=final_video_paths[0] if final_video_paths else None,
+        )
+    except Exception as exc:
+        logger.warning(f"thumbnail generation failed (non-blocking): {exc}")
+
+    # 8. Cross-post to social platforms (if enabled)
     cross_post_results = []
     if upload_post.upload_post_service.is_configured() and upload_post.upload_post_service.auto_upload:
         platforms = upload_post.upload_post_service.platforms
@@ -558,6 +592,9 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         "audio_duration": audio_duration,
         "subtitle_path": subtitle_path,
         "materials": downloaded_videos,
+        "thumbnail": thumbnail_path,
+        "seo_keywords": getattr(params, "seo_keywords", None),
+        "campaign_template": getattr(params, "campaign_template", None),
         "cross_post_results": cross_post_results if cross_post_results else None,
     }
     sm.state.update_task(

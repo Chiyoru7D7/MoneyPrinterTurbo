@@ -114,6 +114,12 @@ class VideoParams(BaseModel):
     video_script_prompt: str = Field(default="", max_length=2000)
     custom_system_prompt: str = Field(default="", max_length=8000)
 
+    # Campaign Template System
+    campaign_template: Optional[str] = None
+    # One of: "b2c_weight_loss" | "b2b_saas" | "nft_metaverse" | "ngo_fundraising" | None (generic)
+    seo_keywords: Optional[list] = None
+    # Template-provided seed keywords; LLM expands to long-tail variants
+
     # AI Image Generation (video_source="ai_image")
     ai_scene_count: Optional[int] = 5
     ai_image_width: Optional[int] = 540  # reserved

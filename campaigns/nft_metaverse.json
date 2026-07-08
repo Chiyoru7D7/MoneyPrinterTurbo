@@ -1,0 +1,88 @@
+{
+  "name": "NFT / Metaverse Project",
+  "version": "1.0.0",
+  "category": "nft",
+  "description": "Hype-building videos for NFT collections, metaverse projects, and Web3 communities. FOMO-driven, visually striking, community-focused.",
+  "icon": "🌐",
+  "color": "#8B5CF6",
+
+  "llm": {
+    "system_prompt": "你是Web3/NFT项目的创意视频写手。你的脚本需要制造FOMO（错失恐惧）、展示稀缺性、建立社区认同感。\n\n核心公式：Vision-FOMO\n- Vision（愿景）：展示这个项目要改变什么，为什么现在是最佳时机\n- Scarcity（稀缺）：限量、限时、独家权益\n- Community（社区）：已经有多少人加入，社区的力量\n- Roadmap（路线图）：接下来会发生什么，持有者的未来收益\n- Mint/Join（行动）：明确的mint链接或加入方式\n\n规则：\n1. 前3秒必须是一个强烈的视觉陈述或问题\n2. 使用Web3社群的语言和meme（WAGMI、GM、LFG等适度用）\n3. 强调稀缺性和独家性\n4. 展示社区力量：\"已有X人加入\"\n5. 最后一段必须是紧迫的CTA\n6. 语气：自信、前卫、包容、有远见\n7. 回复英文，只返回脚本正文",
+    "script_direction": "Vision-FOMO formula. 3 paragraphs. Start with bold statement. Emphasize scarcity + community. End with urgent mint CTA. Web3-native language.",
+    "tone": "visionary_fomo",
+    "max_paragraphs": 3,
+    "language": "en"
+  },
+
+  "visual": {
+    "style": "cyberpunk_neon_futuristic",
+    "color_palette": ["#8B5CF6", "#06B6D4", "#F0ABFC", "#0F0F23"],
+    "scene_types": ["3d_avatar_reveal", "roadmap_timeline", "community_mosaic", "utility_demo", "neon_title_card"],
+    "aspect_ratio": "9:16",
+    "energy": "high",
+    "text_overlay": true
+  },
+
+  "voice": {
+    "preset": "en-US-GuyNeural",
+    "rate": 1.1,
+    "volume": 1.0,
+    "energy": "high",
+    "description": "Confident, slightly aggressive. Builds excitement. Sounds like a community leader."
+  },
+
+  "bgm": {
+    "mood": "electronic_futuristic",
+    "tempo": "fast",
+    "volume": 0.18,
+    "description": "Synthwave or electronic beat. Drops when revealing artwork or mint details."
+  },
+
+  "keywords": {
+    "seed": [
+      "NFT collection launch",
+      "digital art investment",
+      "metaverse real estate",
+      "Web3 community project",
+      "crypto gaming token",
+      "blockchain collectibles",
+      "generative art drop",
+      "virtual world experience"
+    ],
+    "negative": ["scam", "rug pull", "ponzi", "worthless", "crash"],
+    "long_tail": [
+      "best NFT projects to watch 2026",
+      "how to find undervalued NFT collections",
+      "metaverse land value prediction",
+      "Web3 gaming tokens with utility"
+    ]
+  },
+
+  "platforms": {
+    "primary": ["twitter", "instagram"],
+    "secondary": ["tiktok", "discord"],
+    "optimal_time": "12:00-15:00 EST",
+    "hashtag_strategy": "web3_trending_cross_chain"
+  },
+
+  "cta": {
+    "primary": "⚡ MINTING NOW — Only 200 spots left. Link in bio.",
+    "secondary": "Don't miss the next blue chip. Join the community 👇",
+    "urgency": "high",
+    "format": "mint_now"
+  },
+
+  "analytics_goals": {
+    "target_ctr": 4.0,
+    "target_conversion": 1.5,
+    "target_retention": 55.0,
+    "primary_metric": "mints"
+  },
+
+  "hook_examples": [
+    "This NFT collection sold out in 47 seconds. Here's why...",
+    "The metaverse isn't coming. It's already here. And you're early...",
+    "2789 holders. $4.2M floor. One collection. This is what community looks like...",
+    "While everyone was sleeping, this Web3 project just partnered with..."
+  ]
+}

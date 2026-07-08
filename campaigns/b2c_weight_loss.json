@@ -1,0 +1,88 @@
+{
+  "name": "B2C — Weight Loss Product",
+  "version": "1.0.0",
+  "category": "b2c",
+  "description": "Direct-response video ads for weight loss supplements, fitness programs, and diet products. Urgency-driven, pain-point focused, high-energy.",
+  "icon": "🔥",
+  "color": "#FF4444",
+
+  "llm": {
+    "system_prompt": "你是顶级直效营销（Direct Response）视频写手，专攻减肥健身产品。你的每一句话都必须推动观众采取行动。\n\n核心公式：AIDA\n- Attention（注意力）：前3秒用痛点或惊人事实抓住观众\n- Interest（兴趣）：展示问题有多普遍、多痛苦\n- Desire（渴望）：描绘使用产品后的理想状态\n- Action（行动）：限时优惠、紧迫感、明确的下一步\n\n规则：\n1. 每段15-25词，短句，口语化\n2. 每段结尾必须是悬念或钩子，勾着看下一段\n3. 第一段必须包含一个惊人的数字或事实\n4. 最后一段必须包含限时优惠和明确的CTA\n5. 永远不要用\"你好\"、\"欢迎\"开头\n6. 用第二人称\"你\"直接对观众说话\n7. 回复英文，只返回脚本正文，不要任何格式标记",
+    "script_direction": "Use AIDA formula. 3 paragraphs. Each paragraph 15-25 words. Start with a shocking stat. End with limited-time CTA. High energy throughout.",
+    "tone": "urgent_pain_point",
+    "max_paragraphs": 3,
+    "language": "en"
+  },
+
+  "visual": {
+    "style": "high_contrast_lifestyle",
+    "color_palette": ["#FF4444", "#FFFFFF", "#1A1A1A"],
+    "scene_types": ["before_after", "product_hero", "lifestyle_action", "testimonial_moment"],
+    "aspect_ratio": "9:16",
+    "energy": "high",
+    "text_overlay": true
+  },
+
+  "voice": {
+    "preset": "en-US-JennyNeural",
+    "rate": 1.15,
+    "volume": 1.0,
+    "energy": "high",
+    "description": "Fast-paced, energetic female voice. Creates urgency."
+  },
+
+  "bgm": {
+    "mood": "energetic_urgent",
+    "tempo": "fast",
+    "volume": 0.15,
+    "description": "High-BPM electronic beat. Drops on key moments."
+  },
+
+  "keywords": {
+    "seed": [
+      "weight loss transformation",
+      "fat burning workout",
+      "slim down fast",
+      "diet supplement results",
+      "metabolism boost",
+      "belly fat loss",
+      "fitness motivation",
+      "before after weight loss"
+    ],
+    "negative": ["surgery", "expensive treatment", "dangerous method", "starvation"],
+    "long_tail": [
+      "best weight loss supplement 2026",
+      "how to lose belly fat fast naturally",
+      "morning routine for weight loss",
+      "fat burner that actually works"
+    ]
+  },
+
+  "platforms": {
+    "primary": ["tiktok", "instagram"],
+    "secondary": ["youtube_shorts", "facebook_reels"],
+    "optimal_time": "18:00-21:00 EST",
+    "hashtag_strategy": "mix_trending_niche"
+  },
+
+  "cta": {
+    "primary": "🔥 LIMITED TIME: 50% OFF — Tap link in bio!",
+    "secondary": "Don't wait. Your transformation starts TODAY. 👆",
+    "urgency": "high",
+    "format": "link_in_bio"
+  },
+
+  "analytics_goals": {
+    "target_ctr": 3.5,
+    "target_conversion": 2.0,
+    "target_retention": 65.0,
+    "primary_metric": "sales"
+  },
+
+  "hook_examples": [
+    "I lost 27 pounds in 60 days without stepping foot in a gym...",
+    "90% of people trying to lose weight are making this ONE mistake...",
+    "Your metabolism isn't broken. You're just using the wrong fuel...",
+    "This $29 supplement outperformed every $100 fat burner we tested..."
+  ]
+}

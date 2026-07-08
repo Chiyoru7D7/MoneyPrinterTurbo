@@ -1,0 +1,88 @@
+{
+  "name": "NGO / Fundraising Campaign",
+  "version": "1.0.0",
+  "category": "ngo",
+  "description": "Emotional storytelling videos for non-profit fundraising, charity campaigns, and social impact initiatives. Empathy-driven, transparent, action-oriented.",
+  "icon": "💚",
+  "color": "#16A34A",
+
+  "llm": {
+    "system_prompt": "你是非营利组织的视频写手。你的脚本需要触动人心、建立信任、推动具体行动。\n\n核心公式：Story-Impact-Action\n- Story（故事）：一个真实个体的故事——他们面临什么困难\n- Impact（影响）：你的捐款具体能改变什么——透明、具体\n- Trust（信任）：组织的透明度、过往成果、资金使用比例\n- Action（行动）：具体金额的具体影响 + 明确的捐款方式\n\n规则：\n1. 前三秒：一个真实的、有名字的人的故事\n2. 用具体数字说明影响：\"$10 = 一个孩子一个月的午餐\"\n3. 展示透明度：\"我们87%的资金直接用于项目\"\n4. 语气：温暖、真诚、有希望，不要悲情炒作\n5. 不要过度煽情——尊重受助者的尊严\n6. 最后一段：明确的捐款金额选项和对应的具体影响\n7. 回复英文，只返回脚本正文",
+    "script_direction": "Story-Impact-Action formula. 3 paragraphs. Open with a real person's story. Include $→impact specifics. End with donation options + link.",
+    "tone": "empathetic_hopeful",
+    "max_paragraphs": 3,
+    "language": "en"
+  },
+
+  "visual": {
+    "style": "warm_natural_documentary",
+    "color_palette": ["#16A34A", "#FEF3C7", "#FFFFFF", "#374151"],
+    "scene_types": ["real_people_portrait", "impact_footage", "volunteer_action", "thank_you_moment", "infographic_impact"],
+    "aspect_ratio": "9:16",
+    "energy": "medium_low",
+    "text_overlay": true
+  },
+
+  "voice": {
+    "preset": "en-US-JennyNeural",
+    "rate": 0.95,
+    "volume": 1.0,
+    "energy": "medium_low",
+    "description": "Warm, sincere female voice. Slower pace to let the message land emotionally."
+  },
+
+  "bgm": {
+    "mood": "hopeful_acoustic",
+    "tempo": "slow",
+    "volume": 0.12,
+    "description": "Soft piano or acoustic guitar. Gentle, hopeful. Swells slightly during CTA."
+  },
+
+  "keywords": {
+    "seed": [
+      "charity donation campaign",
+      "help children in need",
+      "nonprofit fundraising 2026",
+      "social impact project",
+      "community support initiative",
+      "education for all",
+      "clean water project",
+      "hunger relief program"
+    ],
+    "negative": ["scam", "fake charity", "overhead costs", "administrative waste"],
+    "long_tail": [
+      "best charities to donate to 2026",
+      "how much of my donation goes to the cause",
+      "local community projects that need funding",
+      "transparent nonprofit organizations list"
+    ]
+  },
+
+  "platforms": {
+    "primary": ["instagram", "facebook"],
+    "secondary": ["tiktok", "youtube"],
+    "optimal_time": "19:00-22:00 EST",
+    "hashtag_strategy": "cause_awareness_community"
+  },
+
+  "cta": {
+    "primary": "💚 $10/month changes a life. Donate now — link in bio.",
+    "secondary": "Every dollar counts. Join 1,247 monthly donors making a difference.",
+    "urgency": "low",
+    "format": "monthly_donation"
+  },
+
+  "analytics_goals": {
+    "target_ctr": 5.0,
+    "target_conversion": 3.0,
+    "target_retention": 80.0,
+    "primary_metric": "donations"
+  },
+
+  "hook_examples": [
+    "Meet Maria. She's 8 years old. And she walks 6 miles every day just to get clean water...",
+    "For the price of one coffee, you can feed a child for a week. Here's how...",
+    "Last year, 2,847 donors like you built 14 schools. This year, we need 20...",
+    "100% of your first donation goes directly to the cause. No admin fees. No overhead..."
+  ]
+}

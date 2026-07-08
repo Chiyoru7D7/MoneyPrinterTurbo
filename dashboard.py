@@ -273,6 +273,9 @@ def load_tasks():
             continue
         final_videos = list(task_dir.glob("final-*.mp4"))
         combined = list(task_dir.glob("combined-*.mp4"))
+        # Thumbnail
+        thumbnail_file = task_dir / "thumbnail.jpg"
+        thumbnail_path = str(thumbnail_file) if thumbnail_file.exists() else None
         # Read timing data if exists
         timing = {}
         timing_file = task_dir / "timing.json"
@@ -293,6 +296,17 @@ def load_tasks():
             except Exception:
                 pass
 
+        # Read campaign template from script.json
+        campaign_tpl = None
+        script_file = task_dir / "script.json"
+        if script_file.exists():
+            import json
+            try:
+                _sd = json.loads(script_file.read_text(encoding="utf-8"))
+                campaign_tpl = _sd.get("campaign_template")
+            except Exception:
+                pass
+
         tasks.append({
             "id_short": task_dir.name[:8],
             "full_id": task_dir.name,
@@ -304,6 +318,8 @@ def load_tasks():
             "success": len(final_videos) > 0,
             "timing": timing,
             "alignment": alignment,
+            "thumbnail": thumbnail_path,
+            "campaign_template": campaign_tpl,
         })
     return tasks
 
@@ -319,7 +335,7 @@ def get_video_size_mb(path):
     except: return 0
 
 
-def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)", video_source="pexels", ai_provider="comfyui", research_script_prompt="", research_brief=None):
+def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)", video_source="pexels", ai_provider="comfyui", research_script_prompt="", research_brief=None, campaign_template=None):
     try:
         from app.models.schema import VideoParams
         from app.services import task as task_service
@@ -359,6 +375,7 @@ def _run_video_generation(task_id, subject, voice, length_key="Short (~15s)", vi
             paragraph_number=paragraphs,
             video_script_prompt=script_prompt,
             font_name=font,
+            campaign_template=campaign_template,
         )
         if video_source == "ai_image":
             # Visual scene count — more scenes = more dynamic video.
@@ -667,6 +684,47 @@ if st.session_state.nav_page == "🎬 Dashboard":
     """, unsafe_allow_html=True)
 
     with st.form("generate_form", clear_on_submit=False):
+        # ── Campaign Template Selector ──
+        from app.services.campaign import list_templates as _list_templates, get_template_preview as _get_tpl_preview
+        _templates = _list_templates()
+        _tpl_options = ["None (Generic)"] + [
+            "{} {} — {}".format(t["icon"], t["name"], t["category"].upper())
+            for t in _templates
+        ]
+        _tpl_ids = [None] + [t["id"] for t in _templates]
+        _selected_tpl_idx = st.selectbox(
+            "🎯 Campaign Template",
+            range(len(_tpl_options)),
+            format_func=lambda i: _tpl_options[i],
+            index=0,
+            help="Choose a campaign template for optimized prompts, voice, and visual style.",
+        )
+        _selected_tpl_id = _tpl_ids[_selected_tpl_idx]
+
+        # Show template preview when one is selected
+        if _selected_tpl_id:
+            _preview = _get_tpl_preview(_selected_tpl_id)
+            if _preview:
+                st.markdown(f"""
+                <div style="background:{CARD_BG};border:2px solid {_preview['color']};border-radius:12px;
+                padding:16px 20px;margin:0 0 16px 0;">
+                    <div style="font-size:1.1rem;font-weight:700;color:{_preview['color']};margin-bottom:8px;">
+                        {_preview['icon']} {_preview['name']} v{_preview['version']}
+                    </div>
+                    <div style="font-size:0.85rem;color:{TEXT_SECONDARY};margin-bottom:8px;">
+                        {_preview['description'][:200]}
+                    </div>
+                    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:0.8rem;">
+                        <span>🎙️ <strong>{_preview['voice_name']}</strong></span>
+                        <span>🎵 <strong>{_preview['bgm_mood']}</strong></span>
+                        <span>🎯 <strong>{_preview['tone']}</strong></span>
+                    </div>
+                    <div style="font-size:0.78rem;color:{TEXT_MUTED};margin-top:6px;">
+                        CTA: {_preview['cta'][:120]}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
         # Pre-fill topic from Video Research if available
         _prefill = st.session_state.get("generate_topic", "")
         topic = st.text_input(
@@ -722,7 +780,9 @@ if st.session_state.nav_page == "🎬 Dashboard":
             st.session_state.running_tasks[task_id] = {"status": "running", "error": None}
             research_sp = st.session_state.get("generate_script_prompt", "")
             research_bf = st.session_state.get("research_result") if st.session_state.get("research_mode") == "analyze" else None
-            t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice, length, video_source, ai_provider, research_sp, research_bf), daemon=True)
+            # Pass campaign template to the generator thread
+            _tpl_id = _selected_tpl_id  # captured from selectbox above
+            t = threading.Thread(target=_run_video_generation, args=(task_id, topic.strip(), voice, length, video_source, ai_provider, research_sp, research_bf, _tpl_id), daemon=True)
             t.start()
             load_tasks.clear()
             st.success(f"Task `{task_id[:8]}` started!")
@@ -810,9 +870,27 @@ if st.session_state.nav_page == "🎬 Dashboard":
             emoji = "🟢" if score >= 80 else ("🟡" if score >= 60 else "🔴")
             align_str = f" · {emoji} Match: {score}%"
 
-        drawer_title = f"{status_icon}  `{task['id_short']}`  —  {status_label}  ·  {modified_str}{size_info}{timing_str}{align_str}"
+        # Campaign template badge
+        tpl_str = ""
+        if task.get("campaign_template"):
+            _tpl_labels = {
+                "b2c_weight_loss": "🔥 B2C",
+                "b2b_saas": "💼 B2B",
+                "nft_metaverse": "🌐 NFT",
+                "ngo_fundraising": "💚 NGO",
+            }
+            tpl_str = f" · {_tpl_labels.get(task['campaign_template'], task['campaign_template'])}"
+
+        drawer_title = f"{status_icon}  `{task['id_short']}`  —  {status_label}  ·  {modified_str}{size_info}{timing_str}{align_str}{tpl_str}"
 
         with st.expander(drawer_title, expanded=(task == tasks[0] if tasks else False)):
+            # Show thumbnail if available
+            thumb = task.get("thumbnail")
+            if thumb and os.path.exists(thumb):
+                _, c_thumb, _ = st.columns([1, 2, 1])
+                with c_thumb:
+                    st.image(thumb, use_container_width=True)
+
             if task["final_videos"]:
                 for vpath in task["final_videos"]:
                     if os.path.exists(vpath):

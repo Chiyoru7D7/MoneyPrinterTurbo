@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moneyprinterturbo/campaigns/schema",
+  "title": "Campaign Template",
+  "description": "Schema for MoneyPrinterTurbo campaign templates. Each template defines LLM prompts, visual style, voice, BGM, keywords, platforms, CTA, and analytics goals for a specific campaign type.",
+  "type": "object",
+  "required": ["name", "version", "category", "llm", "visual", "voice", "bgm", "keywords", "platforms", "cta", "analytics_goals"],
+  "properties": {
+    "name": { "type": "string", "description": "Human-readable template name" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "category": { "type": "string", "enum": ["b2c", "b2b", "nft", "ngo"] },
+    "description": { "type": "string" },
+    "icon": { "type": "string" },
+    "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+
+    "llm": {
+      "type": "object",
+      "required": ["system_prompt", "tone", "max_paragraphs", "language"],
+      "properties": {
+        "system_prompt": { "type": "string", "minLength": 50, "maxLength": 8000 },
+        "script_direction": { "type": "string", "maxLength": 2000 },
+        "tone": { "type": "string" },
+        "max_paragraphs": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "language": { "type": "string", "maxLength": 64 }
+      }
+    },
+
+    "visual": {
+      "type": "object",
+      "required": ["style", "aspect_ratio"],
+      "properties": {
+        "style": { "type": "string" },
+        "color_palette": { "type": "array", "items": { "type": "string" } },
+        "scene_types": { "type": "array", "items": { "type": "string" } },
+        "aspect_ratio": { "type": "string", "enum": ["16:9", "9:16", "1:1"] },
+        "energy": { "type": "string", "enum": ["low", "medium_low", "medium", "high"] },
+        "text_overlay": { "type": "boolean" }
+      }
+    },
+
+    "voice": {
+      "type": "object",
+      "required": ["preset"],
+      "properties": {
+        "preset": { "type": "string" },
+        "rate": { "type": "number", "minimum": 0.5, "maximum": 2.0 },
+        "volume": { "type": "number", "minimum": 0.0, "maximum": 2.0 },
+        "energy": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+
+    "bgm": {
+      "type": "object",
+      "properties": {
+        "mood": { "type": "string" },
+        "tempo": { "type": "string", "enum": ["slow", "medium", "fast"] },
+        "volume": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "description": { "type": "string" }
+      }
+    },
+
+    "keywords": {
+      "type": "object",
+      "properties": {
+        "seed": { "type": "array", "items": { "type": "string" } },
+        "negative": { "type": "array", "items": { "type": "string" } },
+        "long_tail": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "platforms": {
+      "type": "object",
+      "properties": {
+        "primary": { "type": "array", "items": { "type": "string" } },
+        "secondary": { "type": "array", "items": { "type": "string" } },
+        "optimal_time": { "type": "string" },
+        "hashtag_strategy": { "type": "string" }
+      }
+    },
+
+    "cta": {
+      "type": "object",
+      "required": ["primary"],
+      "properties": {
+        "primary": { "type": "string", "maxLength": 500 },
+        "secondary": { "type": "string", "maxLength": 500 },
+        "urgency": { "type": "string", "enum": ["low", "medium", "high"] },
+        "format": { "type": "string" }
+      }
+    },
+
+    "analytics_goals": {
+      "type": "object",
+      "properties": {
+        "target_ctr": { "type": "number" },
+        "target_conversion": { "type": "number" },
+        "target_retention": { "type": "number" },
+        "primary_metric": { "type": "string" }
+      }
+    },
+
+    "hook_examples": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

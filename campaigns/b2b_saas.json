@@ -1,0 +1,88 @@
+{
+  "name": "B2B — SaaS Product",
+  "version": "1.0.0",
+  "category": "b2b",
+  "description": "Lead generation and product demo videos for B2B SaaS. Professional, data-driven, ROI-focused.",
+  "icon": "💼",
+  "color": "#2563EB",
+
+  "llm": {
+    "system_prompt": "你是 B2B SaaS 视频写手，目标受众是企业决策者（CEO、CTO、VP）。你的视频脚本需要建立信任、展示专业度、量化ROI。\n\n核心公式：PAS+D\n- Problem（问题）：精准描述一个企业级痛点，用数据证明\n- Agitate（放大）：这个痛点每天让企业损失多少钱/时间\n- Solution（方案）：产品如何优雅地解决，30秒演示\n- Data（数据）：具体数字 — 节省X%成本、提升Y%效率\n\n规则：\n1. 每段20-30词，专业但不晦涩\n2. 必须包含至少1个具体数字（百分比、金额、时间）\n3. 语气：自信、专业、不浮夸\n4. 不要用\"革命性\"、\"颠覆\"等空洞词汇\n5. 最后一段必须是CTA + 免费试用/演示邀请\n6. 用\"你\"但保持商务距离感\n7. 回复英文，只返回脚本正文",
+    "script_direction": "PAS+D formula. 2-3 paragraphs. Each 20-30 words. Include specific numbers. Professional tone. End with free trial/demo CTA.",
+    "tone": "professional_data_driven",
+    "max_paragraphs": 3,
+    "language": "en"
+  },
+
+  "visual": {
+    "style": "clean_minimal_corporate",
+    "color_palette": ["#2563EB", "#F8FAFC", "#1E293B"],
+    "scene_types": ["dashboard_demo", "data_visualization", "workflow_animation", "team_collaboration", "results_chart"],
+    "aspect_ratio": "9:16",
+    "energy": "medium",
+    "text_overlay": true
+  },
+
+  "voice": {
+    "preset": "en-US-GuyNeural",
+    "rate": 1.0,
+    "volume": 1.0,
+    "energy": "medium",
+    "description": "Confident, professional male voice. Trustworthy and credible."
+  },
+
+  "bgm": {
+    "mood": "professional_ambient",
+    "tempo": "medium",
+    "volume": 0.12,
+    "description": "Subtle corporate ambient. Doesn't distract from the message."
+  },
+
+  "keywords": {
+    "seed": [
+      "business automation software",
+      "team productivity tool",
+      "SaaS solution for enterprise",
+      "workflow optimization platform",
+      "data analytics dashboard",
+      "cloud management software",
+      "B2B lead generation",
+      "enterprise efficiency"
+    ],
+    "negative": ["free", "cheap", "hobby", "personal use"],
+    "long_tail": [
+      "best SaaS tools for small business 2026",
+      "how to automate business workflows",
+      "enterprise software ROI calculator",
+      "team productivity platform comparison"
+    ]
+  },
+
+  "platforms": {
+    "primary": ["linkedin", "youtube"],
+    "secondary": ["twitter", "facebook"],
+    "optimal_time": "08:00-10:00 EST weekdays",
+    "hashtag_strategy": "industry_niche_professional"
+  },
+
+  "cta": {
+    "primary": "Start your free 14-day trial → Link in bio",
+    "secondary": "See how much you could save. Free ROI calculator in bio. 📊",
+    "urgency": "medium",
+    "format": "free_trial"
+  },
+
+  "analytics_goals": {
+    "target_ctr": 2.0,
+    "target_conversion": 5.0,
+    "target_retention": 70.0,
+    "primary_metric": "trial_signups"
+  },
+
+  "hook_examples": [
+    "Your team is losing 12 hours a week to manual data entry. Here's the fix...",
+    "We analyzed 500 companies. The top 10% all use this one workflow hack...",
+    "Most SaaS tools charge enterprise prices for basic features. We don't...",
+    "In 90 seconds: how [Company] cut operational costs by 34%..."
+  ]
+}
