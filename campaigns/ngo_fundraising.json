@@ -58,6 +58,52 @@
     ]
   },
 
+  "seo": {
+    "title_templates": [
+      "Meet {Name}. They're {Age} Years Old. And They {Challenge} Every Single Day.",
+      "For The Price of {EverydayItem}, You Can {Impact} For {Timeframe}.",
+      "Last Year, {Number} Donors Like You {Achievement}. This Year, We Need {Goal}.",
+      "{Percent}% of Every Dollar Goes Directly to {Cause}. Here's The Proof.",
+      "The {Adjective} Truth About {Cause} (It's Not What You Think)"
+    ],
+    "description_templates": [
+      "{story_opening}\n\nThe reality:\n📊 {stat_1}\n💔 {stat_2}\n\nYour impact:\n💚 ${amount_1} = {impact_1}\n💚 ${amount_2} = {impact_2}\n💚 ${amount_3} = {impact_3}\n\n{cta}",
+      "Right now, {urgency_statement}.\n\n{solution_statement}\n\nWe've already {past_achievement}. But we need your help to {future_goal}.\n\n{cta}"
+    ],
+    "funnel_keywords": {
+      "awareness": [
+        "children without clean water",
+        "education inequality statistics",
+        "hunger crisis 2026",
+        "climate change impact communities"
+      ],
+      "consideration": [
+        "most effective charities to donate to",
+        "charity navigator top rated nonprofits",
+        "how to verify a charity is legitimate",
+        "donation impact per dollar comparison"
+      ],
+      "conversion": [
+        "donate monthly to charity",
+        "sponsor a child today",
+        "one-time donation impact",
+        "tax deductible donation 2026"
+      ]
+    },
+    "content_type_keywords": {
+      "video_script": ["make a difference", "change a life", "real impact", "community support", "hope"],
+      "ad_copy": ["donate now", "monthly giving", "change starts with you", "every dollar counts", "join the movement"],
+      "blog_post": ["how to choose a charity", "impact of monthly donations", "nonprofit transparency guide", "where does my donation go", "social impact measurement"],
+      "social_post": ["giving back", "make a difference", "community love", "be the change", "support local", "donate today"]
+    },
+    "platform_hashtags": {
+      "instagram": ["#Charity", "#MakeADifference", "#GiveBack", "#SocialGood", "#Nonprofit", "#Community", "#ChangeMakers", "#Hope", "#Impact", "#Philanthropy"],
+      "facebook": ["#Charity", "#Fundraising", "#MakeADifference", "#Community", "#Nonprofit"],
+      "tiktok": ["#Charity", "#MakeADifference", "#SocialGood", "#GiveBack", "#Kindness"],
+      "youtube": ["#Charity", "#Nonprofit", "#MakeADifference", "#Impact", "#Documentary"]
+    }
+  },
+
   "platforms": {
     "primary": ["instagram", "facebook"],
     "secondary": ["tiktok", "youtube"],

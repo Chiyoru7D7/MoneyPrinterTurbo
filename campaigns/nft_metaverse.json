@@ -58,6 +58,52 @@
     ]
   },
 
+  "seo": {
+    "title_templates": [
+      "This {Adjective} NFT Collection Sold Out in {Timeframe} — Here's Why",
+      "The {Year} {Chain} Ecosystem: {Number} Projects You Need to Watch",
+      "I Analyzed {Number} NFT Projects. Only {Percent}% Have These {Number} Traits",
+      "{CommunityName}: {Number} Holders. ${FloorPrice} Floor. One Collection.",
+      "While Everyone Was {Distraction}, This Web3 Project Just {Achievement}"
+    ],
+    "description_templates": [
+      "{vision_statement}\n\n⚡ Mint details:\n• Supply: {supply}\n• Price: {price}\n• Date: {date}\n\n{community_stats}\n\n{cta}",
+      "The next blue chip is being minted right now.\n\n{project_differentiator}\n\nRoadmap highlights:\n• {milestone_1}\n• {milestone_2}\n• {milestone_3}\n\n{cta}"
+    ],
+    "funnel_keywords": {
+      "awareness": [
+        "what is NFT and how does it work",
+        "best NFT marketplaces 2026",
+        "how to buy digital art",
+        "metaverse explained beginner"
+      ],
+      "consideration": [
+        "best NFT collections to invest in",
+        "how to spot undervalued NFT projects",
+        "NFT rarity tool comparison",
+        "which blockchain for NFT minting"
+      ],
+      "conversion": [
+        "mint NFT now",
+        "NFT allowlist spot",
+        "limited edition NFT drop",
+        "exclusive NFT presale access"
+      ]
+    },
+    "content_type_keywords": {
+      "video_script": ["NFT mint", "digital art reveal", "metaverse project", "Web3 community", "blockchain gaming"],
+      "ad_copy": ["limited supply", "minting now", "allowlist open", "floor price moonshot", "blue chip potential"],
+      "blog_post": ["NFT investment guide 2026", "how to evaluate NFT projects", "metaverse real estate buying guide", "Web3 gaming ecosystem overview", "digital art market analysis"],
+      "social_post": ["NFT community", "gm frens", "WAGMI", "mint alert", "alpha leak", "floor price update"]
+    },
+    "platform_hashtags": {
+      "twitter": ["#NFT", "#Web3", "#Crypto", "#NFTCommunity", "#Mint", "#DigitalArt", "#Metaverse", "#BlockchainGaming"],
+      "instagram": ["#NFT", "#NFTArt", "#DigitalArt", "#CryptoArt", "#NFTCollector", "#Web3", "#Metaverse", "#NFTCommunity"],
+      "tiktok": ["#NFT", "#Crypto", "#Web3", "#DigitalArt", "#NFTCommunity", "#Metaverse"],
+      "discord": ["#NFT", "#Web3", "#Alpha", "#Mint", "#WAGMI"]
+    }
+  },
+
   "platforms": {
     "primary": ["twitter", "instagram"],
     "secondary": ["tiktok", "discord"],

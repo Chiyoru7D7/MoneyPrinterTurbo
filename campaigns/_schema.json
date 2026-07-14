@@ -103,6 +103,47 @@
     "hook_examples": {
       "type": "array",
       "items": { "type": "string" }
+    },
+
+    "seo": {
+      "type": "object",
+      "description": "SEO strategy configuration — keyword funnels, title/description templates, platform hashtags",
+      "properties": {
+        "title_templates": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Template strings for SEO title generation. Use {placeholder} slots filled at runtime."
+        },
+        "description_templates": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Template strings for SEO description/caption generation."
+        },
+        "funnel_keywords": {
+          "type": "object",
+          "description": "Keywords organized by marketing funnel stage",
+          "properties": {
+            "awareness": { "type": "array", "items": { "type": "string" } },
+            "consideration": { "type": "array", "items": { "type": "string" } },
+            "conversion": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "content_type_keywords": {
+          "type": "object",
+          "description": "Keywords optimized per content format",
+          "properties": {
+            "video_script": { "type": "array", "items": { "type": "string" } },
+            "ad_copy": { "type": "array", "items": { "type": "string" } },
+            "blog_post": { "type": "array", "items": { "type": "string" } },
+            "social_post": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "platform_hashtags": {
+          "type": "object",
+          "description": "Pre-built hashtag sets per platform",
+          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+        }
+      }
     }
   }
 }

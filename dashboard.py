@@ -141,6 +141,21 @@ st.markdown(f"""
     }}
     .stSelectbox label, .stTextInput label {{ font-size: 1.25rem !important; color: #000000 !important; font-weight: 700 !important; }}
 
+    /* ── Selectbox dropdown options ── */
+    [data-baseweb="select"] [data-baseweb="tag"], [data-baseweb="select"] span {{
+        color: #000000 !important;
+    }}
+    [data-baseweb="select"] li, [data-baseweb="menu"] li, [role="option"], [role="listbox"] li {{
+        color: #000000 !important;
+        background: #ffffff !important;
+    }}
+    [data-baseweb="select"] li:hover, [data-baseweb="menu"] li:hover, [role="option"]:hover {{
+        background: #e8f5e9 !important;
+    }}
+    [data-baseweb="popover"] {{
+        background: #ffffff !important;
+    }}
+
     /* ── Dark Sidebar ── */
     [data-testid="stSidebar"] {{
         background: #1a1a2e !important;
@@ -296,14 +311,16 @@ def load_tasks():
             except Exception:
                 pass
 
-        # Read campaign template from script.json
+        # Read campaign template + SEO report path from script.json
         campaign_tpl = None
+        seo_path = None
         script_file = task_dir / "script.json"
         if script_file.exists():
             import json
             try:
                 _sd = json.loads(script_file.read_text(encoding="utf-8"))
                 campaign_tpl = _sd.get("campaign_template")
+                seo_path = _sd.get("seo_report_path")
             except Exception:
                 pass
 
@@ -320,6 +337,7 @@ def load_tasks():
             "alignment": alignment,
             "thumbnail": thumbnail_path,
             "campaign_template": campaign_tpl,
+            "seo_report_path": seo_path,
         })
     return tasks
 
@@ -622,6 +640,95 @@ with st.sidebar:
 
     st.divider()
 
+    # ── SEO Toolkit ────────────────────────────────────────────
+    st.markdown('<p style="font-size:0.85rem;opacity:0.7;margin:0;">🔑 SEO Toolkit</p>',
+                unsafe_allow_html=True)
+
+    seo_topic = st.text_input("Keyword topic",
+                              key="seo_topic_input",
+                              placeholder="e.g. weight loss tea...")
+
+    seo_plat = st.selectbox("Platform", ["tiktok", "instagram", "youtube_shorts", "facebook_reels", "pinterest", "web_blog"],
+                            key="seo_platform_select",
+                            format_func=lambda x: {
+                                "tiktok": "TikTok", "instagram": "Instagram",
+                                "youtube_shorts": "YouTube Shorts", "facebook_reels": "Facebook Reels",
+                                "pinterest": "Pinterest", "web_blog": "Web / Blog"
+                            }.get(x, x))
+
+    c_seo1, c_seo2 = st.columns(2)
+    with c_seo1:
+        if st.button("🔍 Research Keywords", use_container_width=True, key="btn_seo_research"):
+            if seo_topic.strip():
+                with st.spinner("Researching keywords..."):
+                    from app.services.seo import research_keywords, generate_hashtags
+                    st.session_state.seo_report = research_keywords(
+                        topic=seo_topic.strip(),
+                        platform=seo_plat,
+                        count=12,
+                    )
+                    st.session_state.seo_hashtags = generate_hashtags(
+                        topic=seo_topic.strip(),
+                        platform=seo_plat,
+                    )
+                st.rerun()
+    with c_seo2:
+        if st.button("🎯 Hashtags Only", use_container_width=True, key="btn_seo_hashtags"):
+            if seo_topic.strip():
+                with st.spinner("Generating hashtags..."):
+                    from app.services.seo import generate_hashtags
+                    st.session_state.seo_hashtags = generate_hashtags(
+                        topic=seo_topic.strip(),
+                        platform=seo_plat,
+                    )
+                    st.session_state.seo_report = None
+                st.rerun()
+
+    # Show SEO keyword results
+    seo_rep = st.session_state.get("seo_report")
+    if seo_rep:
+        from app.services.seo import export_keyword_report
+        # Show as expander with keyword list
+        with st.expander(f"📊 Keywords for '{seo_rep.topic[:30]}'", expanded=True):
+            st.caption(f"{len(seo_rep.keywords)} keywords · {len(seo_rep.groups)} groups · {len(seo_rep.trending_topics)} trends")
+
+            # Keyword table
+            for kw in seo_rep.keywords[:8]:
+                diff_emoji = {"very_low": "🟢", "low": "🟢", "medium": "🟡", "high": "🟠", "very_high": "🔴"}
+                trend_emoji = {"rising": "📈", "stable": "➡️", "declining": "📉", "seasonal": "🌊"}
+                de = diff_emoji.get(kw.difficulty.value if hasattr(kw.difficulty, 'value') else str(kw.difficulty), "⚪")
+                te = trend_emoji.get(kw.trend, "➡️")
+                st.caption(
+                    f"{de} **{kw.keyword}** — vol: {kw.volume_estimate:,} · "
+                    f"{kw.intent.value if hasattr(kw.intent, 'value') else str(kw.intent)} · {te}"
+                )
+
+            if seo_rep.trending_topics:
+                st.caption("🔥 Trending: " + " · ".join(seo_rep.trending_topics[:4]))
+
+            # Export
+            import json as _json
+            report_dict = export_keyword_report(seo_rep)
+            st.download_button(
+                label="⬇️ Download SEO Report",
+                data=_json.dumps(report_dict, ensure_ascii=False, indent=2),
+                file_name=f"seo_report_{seo_rep.topic[:20].replace(' ', '_')}.json",
+                mime="application/json",
+                use_container_width=True,
+                key="btn_dl_seo",
+            )
+
+    # Show hashtag results
+    seo_tags = st.session_state.get("seo_hashtags")
+    if seo_tags:
+        with st.expander(f"🏷️ Hashtags ({len(seo_tags)})", expanded=not bool(seo_rep)):
+            # Copy-friendly format
+            tag_str = " ".join(seo_tags)
+            st.code(tag_str, language=None)
+            st.caption("Click inside the box above → Ctrl+A → Ctrl+C to copy all")
+
+    st.divider()
+
     # Cache cleanup
     cache_count, cache_size = _get_cache_stats()
     st.caption(f"🎞️ Cached clips: {cache_count} files ({cache_size:.1f} MB)")
@@ -899,6 +1006,53 @@ if st.session_state.nav_page == "🎬 Dashboard":
             else:
                 st.caption("No output video found for this task.")
 
+            # Show SEO report if present
+            seo_report_path = task.get("seo_report_path")
+            if not seo_report_path:
+                # Try to construct from task_dir
+                seo_file = Path(task["task_dir"]) / "seo_report.json"
+                if seo_file.exists():
+                    seo_report_path = str(seo_file)
+
+            if seo_report_path and Path(seo_report_path).exists():
+                from app.services.seo import load_seo_report
+                seo_data = load_seo_report(Path(seo_report_path).parent
+                                           if seo_report_path.endswith("seo_report.json")
+                                           else Path(seo_report_path))
+                if seo_data:
+                    st.divider()
+                    st.markdown("#### 🔑 SEO Keyword Report")
+                    c_s1, c_s2, c_s3 = st.columns(3)
+                    with c_s1:
+                        st.metric("Keywords", len(seo_data.keywords))
+                    with c_s2:
+                        st.metric("Groups", len(seo_data.groups))
+                    with c_s3:
+                        cs = seo_data.content_score
+                        score_val = cs.overall if cs else 0
+                        st.metric("Content Score", f"{score_val:.0f}/100")
+                    # Show top keywords
+                    top_kws = seo_data.keywords[:6]
+                    if top_kws:
+                        kw_lines = []
+                        for k in top_kws:
+                            diff_emoji = {"very_low": "🟢", "low": "🟢", "medium": "🟡", "high": "🟠", "very_high": "🔴"}
+                            de = diff_emoji.get(k.difficulty.value if hasattr(k.difficulty, 'value') else str(k.difficulty), "⚪")
+                            kw_lines.append(
+                                f"{de} `{k.keyword}` — "
+                                f"vol:{k.volume_estimate:,} · "
+                                f"{k.intent.value if hasattr(k.intent, 'value') else str(k.intent)}"
+                            )
+                        st.caption("  \n".join(kw_lines))
+
+                    if seo_data.trending_topics:
+                        st.caption("🔥 Trending: " + " · ".join(seo_data.trending_topics[:4]))
+
+                    if cs and cs.suggestions:
+                        with st.expander("💡 Improvement Suggestions"):
+                            for s in cs.suggestions:
+                                st.caption(f"• {s}")
+
             # Show alignment report if present
             if alignment:
                 st.divider()
@@ -960,6 +1114,7 @@ else:
     st.markdown(f"""
     <div class="pipeline">
         <div class="pipe-step"><div class="icon">🤖</div><div class="name">LLM Script</div><div class="detail">DeepSeek Chat</div></div>
+        <div class="pipe-step"><div class="icon">🔑</div><div class="name">SEO Research</div><div class="detail">Keyword+Hashtags</div></div>
         <div class="pipe-step"><div class="icon">🎬</div><div class="name">Director Cut</div><div class="detail">Script+Visuals</div></div>
         <div class="pipe-step"><div class="icon">🎙️</div><div class="name">TTS Narration</div><div class="detail">Edge TTS</div></div>
         <div class="pipe-step"><div class="icon">{footage_icon}</div><div class="name">{footage_name}</div><div class="detail">{footage_detail}</div></div>

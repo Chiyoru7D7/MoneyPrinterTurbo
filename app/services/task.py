@@ -9,7 +9,7 @@ from loguru import logger
 from app.config import config
 from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
-from app.services import campaign, image_gen, llm, material, subtitle, thumbnail, video, voice, upload_post
+from app.services import campaign, image_gen, llm, material, seo, subtitle, thumbnail, video, voice, upload_post
 from app.services import state as sm
 from app.utils import file_security, utils
 
@@ -80,6 +80,8 @@ def save_script_data(task_id, video_script, video_terms, params, scene_prompts=N
         script_data["seo_keywords"] = params.seo_keywords
     if getattr(params, "campaign_template", None):
         script_data["campaign_template"] = params.campaign_template
+    if getattr(params, "seo_report_path", None):
+        script_data["seo_report_path"] = str(params.seo_report_path)
 
     with open(script_file, "w", encoding="utf-8") as f:
         f.write(utils.to_json(script_data))
@@ -450,6 +452,47 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
     save_script_data(task_id, video_script, video_terms, params, scene_prompts)
 
+    # ── 2.5: SEO Keyword Research (runs after script, independent of audio/video) ──
+    seo_report_path = None
+    try:
+        # Determine campaign category + platforms from template
+        tmpl = campaign.load_campaign_template(params.campaign_template) if getattr(params, "campaign_template", None) else None
+        tmpl_platforms = tmpl.get("platforms", {}) if tmpl else {}
+        primary_platforms = (
+            (tmpl_platforms.get("primary", []) if isinstance(tmpl_platforms, dict) else [])
+            + (tmpl_platforms.get("secondary", []) if isinstance(tmpl_platforms, dict) else [])
+        )
+        if not primary_platforms:
+            primary_platforms = ["tiktok", "instagram"]
+        primary_platform = primary_platforms[0]
+        campaign_category = tmpl.get("category", "") if tmpl else ""
+
+        seo_report = seo.run_seo_workflow(
+            topic=params.video_subject,
+            script=video_script,
+            seed_keywords=getattr(params, "seo_keywords", None) or [],
+            negative_keywords=tmpl.get("keywords", {}).get("negative", []) if tmpl else [],
+            platforms=primary_platforms,
+            campaign_category=campaign_category,
+            primary_platform=primary_platform,
+        )
+        # Save report to task directory
+        seo_report_path = seo.save_seo_report(seo_report, utils.task_dir(task_id))
+        params.seo_report_path = str(seo_report_path)
+        # Also merge generated keywords back into params for downstream use
+        if seo_report.keywords:
+            params.seo_keywords = [
+                k.keyword for k in seo_report.keywords[:15]
+            ]
+        logger.info(
+            f"[SEO] report saved: {seo_report_path} "
+            f"({len(seo_report.keywords)} keywords, "
+            f"content_score={seo_report.content_score.overall if seo_report.content_score else 'N/A'})"
+        )
+    except Exception as exc:
+        logger.warning(f"[SEO] workflow skipped (non-fatal): {exc}")
+        seo_report_path = None
+
     if stop_at == "terms":
         sm.state.update_task(
             task_id, state=const.TASK_STATE_COMPLETE, progress=100,
@@ -595,6 +638,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         "thumbnail": thumbnail_path,
         "seo_keywords": getattr(params, "seo_keywords", None),
         "campaign_template": getattr(params, "campaign_template", None),
+        "seo_report_path": getattr(params, "seo_report_path", None),
         "cross_post_results": cross_post_results if cross_post_results else None,
     }
     sm.state.update_task(

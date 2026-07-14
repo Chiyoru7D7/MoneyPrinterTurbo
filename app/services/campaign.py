@@ -215,8 +215,9 @@ def generate_seo_keywords(
 ) -> List[str]:
     """Generate SEO-optimized keyword suggestions from template seed + subject.
 
-    Uses the existing LLM pipeline to expand template seed keywords into
-    long-tail variants relevant to the specific video subject.
+    Delegates to ``app.services.seo`` for full keyword research (volume
+    estimates, difficulty, intent classification), then returns just the
+    keyword strings for backward compatibility.
 
     Args:
         template_id: Which template to pull seed keywords from.
@@ -224,21 +225,43 @@ def generate_seo_keywords(
         count: Number of keywords to generate.
 
     Returns:
-        List of SEO keyword strings (seed + long-tail expansion).
+        List of SEO keyword strings.
     """
     template = load_campaign_template(template_id)
     if not template:
         return []
 
-    keywords = template.get("keywords", {})
-    seed = keywords.get("seed", [])
-    long_tail = keywords.get("long_tail", [])
-    negative = keywords.get("negative", [])
+    keywords_cfg = template.get("keywords", {})
+    seed = keywords_cfg.get("seed", [])
+    negative = keywords_cfg.get("negative", [])
+    long_tail = keywords_cfg.get("long_tail", [])
+    campaign_category = template.get("category", "")
 
-    # Start with template's long-tail keywords as base
+    try:
+        from app.services import seo
+
+        report = seo.research_keywords(
+            topic=video_subject or " ".join(seed[:3]),
+            seed_keywords=seed,
+            platform="tiktok",
+            count=count,
+            negative_keywords=negative,
+            campaign_category=campaign_category,
+        )
+
+        if report.keywords:
+            kw_strings = [k.keyword for k in report.keywords[:count]]
+            logger.info(
+                f"[Campaign] SEO research returned {len(kw_strings)} keywords "
+                f"for template '{template_id}'"
+            )
+            return kw_strings
+    except Exception as exc:
+        logger.warning(f"[Campaign] SEO module failed, using fallback: {exc}")
+
+    # Fallback: static expansion from template
     candidates = list(long_tail) if long_tail else list(seed)
 
-    # If we have a subject, use LLM to generate subject-specific variants
     if video_subject and len(candidates) < count:
         try:
             from app.services.llm import generate_terms
@@ -252,7 +275,7 @@ def generate_seo_keywords(
             if isinstance(extra, list):
                 candidates.extend(extra)
         except Exception as exc:
-            logger.warning(f"[Campaign] SEO keyword generation failed: {exc}")
+            logger.warning(f"[Campaign] LLM fallback also failed: {exc}")
 
     # Filter out negative keywords
     if negative:

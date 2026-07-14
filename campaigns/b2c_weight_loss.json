@@ -58,6 +58,52 @@
     ]
   },
 
+  "seo": {
+    "title_templates": [
+      "{number} {adjective} Ways to {benefit} Without {pain_point}",
+      "I Tried {product_type} for {timeframe} — The Results Shocked Me",
+      "How to {benefit} in {timeframe} (Science-Backed)",
+      "{number} {adjective} {product_type} Hacks Nobody Talks About",
+      "Why Your {pain_point} Won't Budge (And The $X Fix)"
+    ],
+    "description_templates": [
+      "{hook_statement}\n\nWhat you'll learn:\n• {benefit_1}\n• {benefit_2}\n• {benefit_3}\n\n🔥 {cta}",
+      "Struggling with {pain_point}? You're not alone.\n\n{credibility_statement}\n\n{benefit_summary}\n\n{cta}"
+    ],
+    "funnel_keywords": {
+      "awareness": [
+        "why am I not losing weight",
+        "stubborn belly fat causes",
+        "slow metabolism symptoms",
+        "weight loss plateau help"
+      ],
+      "consideration": [
+        "best weight loss supplement 2026",
+        "natural fat burner vs prescription",
+        "keto vs intermittent fasting results",
+        "weight loss tea reviews"
+      ],
+      "conversion": [
+        "buy weight loss supplement online",
+        "fat burner discount code",
+        "limited time weight loss deal",
+        "best price metabolism booster"
+      ]
+    },
+    "content_type_keywords": {
+      "video_script": ["weight loss transformation", "before after", "fat burning", "slim down fast", "metabolism hack"],
+      "ad_copy": ["limited time offer", "50% off", "free trial", "money back guarantee", "results in weeks"],
+      "blog_post": ["how to lose weight fast", "best diet for weight loss", "exercise for belly fat", "metabolism boosting foods", "weight loss tips 2026"],
+      "social_post": ["weight loss journey", "fitness motivation", "transformation tuesday", "healthy lifestyle", "body positivity"]
+    },
+    "platform_hashtags": {
+      "tiktok": ["#weightloss", "#fitness", "#transformation", "#fatloss", "#diet"],
+      "instagram": ["#weightlossjourney", "#fitnessmotivation", "#transformation", "#healthylifestyle", "#beforeandafter", "#fatloss", "#fitfam", "#weightlosstransformation", "#diettips", "#bodytransformation"],
+      "facebook": ["#weightloss", "#fitness", "#health", "#diet", "#wellness"],
+      "pinterest": ["#weightlosstips", "#dietplan", "#healthyliving", "#fatburning"]
+    }
+  },
+
   "platforms": {
     "primary": ["tiktok", "instagram"],
     "secondary": ["youtube_shorts", "facebook_reels"],

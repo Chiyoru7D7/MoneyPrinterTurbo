@@ -119,6 +119,8 @@ class VideoParams(BaseModel):
     # One of: "b2c_weight_loss" | "b2b_saas" | "nft_metaverse" | "ngo_fundraising" | None (generic)
     seo_keywords: Optional[list] = None
     # Template-provided seed keywords; LLM expands to long-tail variants
+    seo_report_path: Optional[str] = None
+    # Path to seo_report.json in the task directory (set by pipeline after SEO workflow)
 
     # AI Image Generation (video_source="ai_image")
     ai_scene_count: Optional[int] = 5

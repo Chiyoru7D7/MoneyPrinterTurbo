@@ -58,6 +58,52 @@
     ]
   },
 
+  "seo": {
+    "title_templates": [
+      "How {CompanyType} Cut {Metric} by {Percent}% With {SolutionType}",
+      "The {Year} {Industry} Tech Stack: {Number} Tools You Need",
+      "{Problem} Is Costing You ${Amount}/Year — Here's The Fix",
+      "{Number} {Adjective} {SolutionType} Features That Pay For Themselves",
+      "We Analyzed {Number} {Industry} Teams. The Top {Percent}% All Do This"
+    ],
+    "description_templates": [
+      "{problem_statement}\n\nThe numbers:\n📊 {stat_1}\n💰 {stat_2}\n⏱️ {stat_3}\n\n{cta}",
+      "Stop wasting {resource} on {problem}.\n\n{solution_summary}\n\nTrusted by {number}+ {industry} teams.\n\n{cta}"
+    ],
+    "funnel_keywords": {
+      "awareness": [
+        "how to automate business processes",
+        "team productivity challenges",
+        "enterprise digital transformation",
+        "manual workflow bottlenecks"
+      ],
+      "consideration": [
+        "best workflow automation software 2026",
+        "SaaS vs on-premise total cost",
+        "project management tool comparison",
+        "enterprise software ROI case study"
+      ],
+      "conversion": [
+        "workflow software free trial",
+        "enterprise SaaS demo request",
+        "business automation pricing",
+        "team productivity solution quote"
+      ]
+    },
+    "content_type_keywords": {
+      "video_script": ["business automation", "team productivity", "workflow optimization", "enterprise software", "ROI demo"],
+      "ad_copy": ["free trial", "no credit card", "14-day trial", "ROI guarantee", "enterprise grade"],
+      "blog_post": ["how to automate workflows", "best productivity tools 2026", "enterprise digital transformation guide", "SaaS ROI calculator", "team collaboration best practices"],
+      "social_post": ["productivity hack", "workflow automation", "business growth", "tech stack", "SaaS tips"]
+    },
+    "platform_hashtags": {
+      "linkedin": ["#SaaS", "#BusinessAutomation", "#Productivity", "#B2B", "#Enterprise", "#DigitalTransformation", "#TechTrends", "#WorkflowOptimization"],
+      "youtube": ["#SaaS", "#BusinessSoftware", "#ProductivityTools", "#TechReview", "#WorkflowAutomation"],
+      "twitter": ["#SaaS", "#B2B", "#Productivity", "#TechTwitter", "#StartupLife"],
+      "facebook": ["#BusinessTips", "#Productivity", "#SmallBusiness", "#TechTools"]
+    }
+  },
+
   "platforms": {
     "primary": ["linkedin", "youtube"],
     "secondary": ["twitter", "facebook"],
